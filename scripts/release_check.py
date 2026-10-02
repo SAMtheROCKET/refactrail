@@ -82,7 +82,7 @@ def inspect_distributions(wheel, archive):
             "sdist_members": len(archive_names)}
 
 
-def check_installed(wheel, source, temporary, logs, label, version, dependency):
+def check_installed(wheel, source, temporary, logs, label, version, dependencies):
     """Install a wheel offline in a fresh venv and run the full verification."""
     environment = temporary / label
     run_command([sys.executable, "-m", "venv", "--without-pip", environment],
@@ -90,7 +90,7 @@ def check_installed(wheel, source, temporary, logs, label, version, dependency):
     executable = environment / ("Scripts/python.exe" if os.name == "nt"
                                 else "bin/python")
     pip = [sys.executable, "-m", "pip", "--python", executable]
-    run_command([*pip, "install", "--no-index", "--no-deps", dependency, wheel],
+    run_command([*pip, "install", "--no-index", "--no-deps", *dependencies, wheel],
                 temporary, logs / f"{label}-install.txt")
     run_command([*pip, "check"], temporary, logs / f"{label}-dependencies.txt")
     probe = (
@@ -116,7 +116,7 @@ def check_installed(wheel, source, temporary, logs, label, version, dependency):
     return {**runtime, "verification": "passed", "uninstall": "passed"}
 
 
-def check_artifacts(output, dependency, skip_twine=False):
+def check_artifacts(output, dependencies, skip_twine=False):
     """Test the wheel and a wheel rebuilt solely from the source archive."""
     wheel, archive = distribution_paths(output)
     metadata = inspect_distributions(wheel, archive)
@@ -135,14 +135,14 @@ def check_artifacts(output, dependency, skip_twine=False):
             package.extractall(extracted, filter="data")
         source = next(path for path in extracted.iterdir() if path.is_dir())
         wheel_result = check_installed(wheel, source, temporary, output,
-                                       "wheel", metadata["version"], dependency)
+                                       "wheel", metadata["version"], dependencies)
         rebuilt = temporary / "rebuilt"
         run_command([sys.executable, "-m", "build", "--wheel",
                      "--no-isolation", "--outdir", rebuilt, source],
                     temporary, output / "sdist-rebuild.txt")
         source_wheel = next(rebuilt.glob("*.whl"))
         sdist_result = check_installed(source_wheel, source, temporary, output,
-                                       "sdist", metadata["version"], dependency)
+                                       "sdist", metadata["version"], dependencies)
     hashes = {path.name: sha256(path.read_bytes()).hexdigest()
               for path in (wheel, archive)}
     (output / "SHA256SUMS").write_text(
@@ -159,7 +159,9 @@ def main():
     """Create a new local release-check directory; never upload artifacts."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dependency-wheel", required=True, type=Path,
-                        help="Trusted local FuncLoom 0.10.2a0 wheel")
+                        action="append",
+                        help="Trusted local FuncLoom and refactrail-core "
+                        "wheels (repeat the option for each)")
     parser.add_argument("--output", required=True, type=Path,
                         help="New directory for artifacts and verification logs")
     parser.add_argument("--artifacts", type=Path,
@@ -178,10 +180,11 @@ def main():
             run_command([sys.executable, "-m", "build", "--no-isolation",
                          "--outdir", output, PROJECT_PATH], PROJECT_PATH,
                         output / "build.txt")
-        result = check_artifacts(output, arguments.dependency_wheel.resolve(),
-                                 arguments.skip_twine)
-        result["dependency_sha256"] = sha256(
-            arguments.dependency_wheel.read_bytes()).hexdigest()
+        dependencies = [path.resolve() for path in arguments.dependency_wheel]
+        result = check_artifacts(output, dependencies, arguments.skip_twine)
+        result["dependency_sha256"] = {
+            path.name: sha256(path.read_bytes()).hexdigest()
+            for path in dependencies}
         result["status"] = "passed"
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
         result = {"status": "failed", "error": str(error),

@@ -19,6 +19,13 @@ class GeneralCliTests(unittest.TestCase):
             code = main(arguments)
         return code, stdout.getvalue(), stderr.getvalue()
 
+    def test_no_arguments_show_the_quick_start(self):
+        code, output, error = self.invoke([])
+        self.assertEqual((code, error), (0, ""))
+        for command in ("refactrail lint", "refactrail format --diff",
+                        "refactrail check", "refactrail fix --diff"):
+            self.assertIn(command, output)
+
     def test_lint_is_independent_of_strict_owner_naming(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "sample.py"

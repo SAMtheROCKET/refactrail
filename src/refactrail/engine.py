@@ -65,8 +65,8 @@ def resolve_engine_str(engine_str: str,
     ) == RULE_CONTRACT_VERSION_INT and hasattr(core_module, operation_str):
         return "rust"
     if engine_str == "rust":
-        raise ValueError("A compatible Rust engine is not installed; install "
-                         "refactrail-core or use --engine python.")
+        raise ValueError("The Rust engine is not available on this system; "
+                         "use --engine python (same results).")
     return "python"
 
 

@@ -1,20 +1,19 @@
 [build-system]
-requires = ["maturin>=1.15,<2"]
-build-backend = "maturin"
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "refactrail-core"
 version = "0.3.1a0"
-readme = "README.md"
 description = "Rust engine for RefacTrail, the Python refactorizer: the same results as its Python engine"
+readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-license-files = ["LICENSE", "THIRD_PARTY_LICENSES/**/*"]
+license-files = ["LICENSE"]
 authors = [{name = "Sambit Supriya Dash"}]
 keywords = ["python", "refactorizer", "linter", "formatter", "rust", "parser", "static-analysis"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
 ]
 
@@ -23,6 +22,5 @@ Homepage = "https://github.com/SAMtheROCKET/refactrail"
 Repository = "https://github.com/SAMtheROCKET/refactrail"
 Issues = "https://github.com/SAMtheROCKET/refactrail/issues"
 
-[tool.maturin]
-module-name = "refactrail_core"
-features = ["pyo3/extension-module"]
+[tool.setuptools]
+py-modules = ["refactrail_core"]

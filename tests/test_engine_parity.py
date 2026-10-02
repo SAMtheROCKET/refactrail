@@ -107,7 +107,8 @@ def reduce_rows_list(rows_list: list[tuple]) -> list[tuple]:
             for row_tuple in rows_list]
 
 
-@unittest.skipIf(refactrail_core is None, "refactrail_core not installed")
+@unittest.skipIf(not hasattr(refactrail_core, "check_source"),
+                 "native refactrail_core not installed")
 class EngineParityTests(unittest.TestCase):
     """Both engines must give identical findings on every edge case."""
 
@@ -153,8 +154,7 @@ FORMAT_SOURCES_TUPLE = (
 )
 
 
-@unittest.skipIf(refactrail_core is None
-                 or not hasattr(refactrail_core, "lint_files"),
+@unittest.skipIf(not hasattr(refactrail_core, "lint_files"),
                  "refactrail_core lint/format not installed")
 class GeneralEngineParityTests(unittest.TestCase):
     """--engine rust must equal --engine python for lint and format."""

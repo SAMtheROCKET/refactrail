@@ -1,36 +1,38 @@
 # RefacTrail for VS Code
 
-Experimental local extension 0.1.1; requires Python package
-`refactrail==0.3.0a0` in your selected interpreter. It installs no
-Python package automatically and sends no source to a service.
+RefacTrail, the Python refactorizer: linting, formatting and verified
+refactoring, without leaving the editor.
 
-Install the local VSIX with VS Code's **Extensions: Install from VSIX**.
-Set `refactrail.pythonPath` to your environment's Python executable, for
-example `.venv/Scripts/python.exe`. Open a trusted local workspace and
-use the `RefacTrail:` commands in the Command Palette. Checks appear in
-Problems; drafts and diffs open for review. Save files before checking or
-writing transformations. RefacTrail commands operate on saved local Python files.
+## Getting started
 
-Generated output still requires project-specific tests. RefacTrail's
-**Apply fixes** command changes the active file; **Preview fixes** does
-not. FuncLoom's refine/modularize commands require a new destination.
-No automatic save-time edits, arbitrary shell commands or target imports
-are used. Command output is limited to 8 MB and execution to 60 seconds.
+1. Install this extension, open a project and trust the workspace.
+2. Run any **RefacTrail:** command from the Command Palette (Ctrl+Shift+P).
+3. The first time, if RefacTrail is not in your Python environment yet,
+   click **Install**. The extension runs `pip install refactrail==0.3.1a0`
+   in that interpreter (FuncLoom and the fast Rust engine come with it),
+   and only after your click.
 
-Publisher ID `samtherocket` is the intended Marketplace identity and is
-not claimed or registered by this build. Publication is the owner's step.
+The interpreter is the one selected in VS Code's Python extension (or
+`python` on your PATH). To use another, click **Choose interpreter** or set
+`refactrail.pythonPath`.
 
-The 0.2.0 preview adds general correctness linting and independent formatting
-preview/apply commands for saved Python files. Formatting is bounded to the
-contract in docs/INDEPENDENT_ENGINES.md; notebooks are not supported by these
-new commands. A formatting preview does not write. The explicitly named
-apply command writes using the engine source-hash and atomic-write checks.
+## Commands
 
+- **Check active file** and **Lint general correctness**: findings appear in
+  the Problems panel.
+- **Preview fixes** / **Apply fixes**: bounded fixes; the preview opens a
+  diff and changes nothing.
+- **Preview independent formatting** / **Apply independent formatting**:
+  also for notebooks, keeping cell outputs and metadata.
+- **Inspect lexical scopes**, **Inspect project import impact** and
+  **Preview local variable rename**: read-only reports.
 
-Version 0.3.0 adds lexical scope and project import-impact JSON reports and a
-local-variable rename proposal command. Rename prompts for a top-level function,
-old name and new name, then displays the read-only plan. Set `refactrail.importRoot`
-to `src` for a source-layout package. `refactrail.lineLength` (40-200, default 79)
-controls supported comma-group wrapping. Independent format commands accept saved
-Python notebooks and preserve cell outputs/metadata. Other commands require Python
-or stub files. Notebook linting does not infer kernel execution state.
+Settings: `refactrail.profile` (standard or strict), `refactrail.lineLength`
+(40-200, default 79), `refactrail.bracketStyle` (own-line or hug) and
+`refactrail.importRoot` (for example `src`).
+
+Writes happen only through the explicit **Apply** commands, after a check
+that the file has not changed and that the result still compiles to the
+same program. Save files before running a command. Nothing is sent to any
+service, the checked code is never run, and each command is limited to 60
+seconds and 8 MB of output.

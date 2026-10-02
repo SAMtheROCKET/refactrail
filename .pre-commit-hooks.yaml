@@ -1,0 +1,27 @@
+# pre-commit hooks: add this repository to a project's
+# .pre-commit-config.yaml; pre-commit installs RefacTrail (with FuncLoom
+# and the Rust engine) automatically. Paths are the staged Python files.
+- id: refactrail-lint
+  name: RefacTrail lint
+  description: Find likely bugs with RefacTrail's correctness rules.
+  entry: refactrail lint
+  language: python
+  types_or: [python, pyi]
+- id: refactrail-format
+  name: RefacTrail format
+  description: Format Python files in place (verified to keep the program).
+  entry: refactrail format --write
+  language: python
+  types_or: [python, pyi]
+- id: refactrail-format-check
+  name: RefacTrail format check
+  description: Fail when Python files are not formatted; changes nothing.
+  entry: refactrail format --check
+  language: python
+  types_or: [python, pyi]
+- id: refactrail-check
+  name: RefacTrail check
+  description: Check structure, naming, type hints and docstrings.
+  entry: refactrail check
+  language: python
+  types_or: [python, pyi]

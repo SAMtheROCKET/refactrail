@@ -9,23 +9,65 @@ Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMth
 
 **0.3.1a0 is an unpublished experimental alpha.** Python 3.12 or newer is
 required. RefacTrail has its own package, CLI and VS Code extension. It
-requires FuncLoom 0.10.2a0 for its rewrite API; FuncLoom has no dependency on
-RefacTrail. No LLM, account or network is needed at runtime.
+installs FuncLoom automatically for its rewrite API; FuncLoom has no
+dependency on RefacTrail. No LLM, account or network is needed at runtime.
 
-## Install locally
+## Quick start
 
-Install the two local wheels together (replace the paths as needed):
-
-```powershell
-python -m pip install --no-index path/to/funcloom-0.10.2a0-py3-none-any.whl path/to/refactrail-0.3.0a0-py3-none-any.whl
-python -m refactrail --version
-python -m refactrail check src --profile strict
-python -m refactrail fix src --diff
+```bash
+pip install refactrail
 ```
 
-For development, install FuncLoom from its source folder first, then run
-`python -m pip install -e .` here. Nothing is uploaded by these local tools.
-The repository URL names the intended `SAMtheROCKET/refactrail` repository.
+That one command also installs FuncLoom and the fast Rust engine (a native
+wheel for Windows, macOS and Linux; on other systems a small fallback is
+installed and the Python engine gives the same results, so nothing ever
+needs compiling). Python 3.12 or newer is required. Until the first PyPI
+release, install from GitHub instead:
+`pip install git+https://github.com/SAMtheROCKET/refactrail.git`.
+
+Then, in any project folder:
+
+```bash
+refactrail                     # the most useful commands
+refactrail lint                # find likely bugs
+refactrail format --diff       # preview formatting; --write applies it
+refactrail check               # structure, naming, type hints, docstrings
+refactrail fix --diff          # preview safe fixes; drop --diff to apply
+```
+
+Paths default to the current folder; pass files or folders to narrow it.
+Exit codes are 0 (clean), 1 (findings) and 2 (error), ready for CI. If your
+system blocks the `refactrail` command, use `python -m refactrail`.
+
+**In VS Code**, install the RefacTrail extension and run *RefacTrail: ...*
+from the Command Palette. It uses the Python interpreter selected in VS Code
+and offers to install RefacTrail there with one click.
+
+**On every commit**, add the hooks to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/SAMtheROCKET/refactrail
+    rev: v0.3.1a0
+    hooks:
+      - id: refactrail-lint
+      - id: refactrail-format
+```
+
+`refactrail-format-check` (fails instead of rewriting) and
+`refactrail-check` are also available.
+
+### From source (development)
+
+Install FuncLoom from its source folder and the local engine fallback
+first, then RefacTrail:
+
+```bash
+python -m pip install -e ../funcloom ./rust/fallback
+python -m pip install -e .
+```
+
+Nothing is uploaded by these local tools.
 
 ## General correctness and independent formatting
 
@@ -120,7 +162,7 @@ ignore = []
 Widths must be 40-200; the preferred function size cannot exceed the maximum.
 See [the rule contract](docs/RULES.md) and [design](docs/DESIGN.md).
 
-## Optional native checker
+## The Rust engine
 
 `--engine auto` selects a compatible `refactrail-core` when installed and
 otherwise uses Python. `--engine python` selects the reference implementation.

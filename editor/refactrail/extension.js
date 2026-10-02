@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const { runPython, ensureTrusted, checkArguments, generalArguments, getUtf16Column, isSupportedInput } = require('./runner');
+const { resolvePythonPath, ensureTool } = require('./setup');
 const manifest = require('./package.json');
 
 function activate(context) {
@@ -19,16 +20,11 @@ function activate(context) {
             ? notebook?.notebook.uri : (editor?.document.uri || notebook?.notebook.uri);
         if (!uri) { throw new Error('Open a Python file or notebook first.'); }
         const config = vscode.workspace.getConfiguration(tool, uri);
-        let pythonPath = config.get('pythonPath', 'python');
-        if (!path.isAbsolute(pythonPath) && /[\\/]/.test(pythonPath)) {
-            const workspace = vscode.workspace.getWorkspaceFolder(uri);
-            if (!workspace) { throw new Error('Use an absolute Python executable path.'); }
-            pythonPath = path.resolve(workspace.uri.fsPath, pythonPath);
-        }
-        const runtime = await runPython(pythonPath, tool, ['--version']);
-        if (runtime.code !== 0 || !runtime.output.includes(manifest.toolVersion)) {
-            throw new Error(`Install ${tool} ${manifest.toolVersion} in the configured interpreter. ${runtime.errors}`);
-        }
+        const pythonPath = await resolvePythonPath(vscode, uri, config.get('pythonPath', ''));
+        await ensureTool(vscode, {
+            pythonPath, tool, displayName: manifest.displayName,
+            version: manifest.toolVersion, runPython,
+        });
         let args;
         let input = '';
         if (command === 'snippet') {

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Easy installation: `pip install refactrail` now also installs the Rust
+  engine (refactrail-core). Native wheels cover Windows x86_64, macOS arm64
+  and x86_64, and Linux x86_64 and ARM64 (glibc and musl); every other
+  system gets a pure-Python fallback wheel, so installation never needs
+  Rust. refactrail-core no longer depends back on refactrail.
+- `refactrail` without arguments shows a short quick start.
+- VS Code: the extension uses the interpreter selected in the Python
+  extension when `refactrail.pythonPath` is empty (the new default), and
+  offers one-click Install/Update when RefacTrail is missing or outdated.
+- pre-commit hooks: refactrail-lint, refactrail-format,
+  refactrail-format-check and refactrail-check.
 - Identifier parity with CPython in the Rust engine: NFKC normalization
   of non-ASCII names (`ﬁle` is `file`), and CPython's rejection of
   characters that cannot appear in names (`a = €`, `x² = 1`,

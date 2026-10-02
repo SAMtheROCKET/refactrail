@@ -6,7 +6,8 @@ from pathlib import Path
 import xml.etree.ElementTree as xml
 import zipfile
 
-FILES = ("package.json", "extension.js", "runner.js", "README.md", "LICENSE")
+FILES = ("package.json", "extension.js", "runner.js", "setup.js", "README.md",
+         "LICENSE")
 NAMESPACE = "http://schemas.microsoft.com/developer/vsx-schema/2011"
 
 

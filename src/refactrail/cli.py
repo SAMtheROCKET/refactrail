@@ -26,6 +26,25 @@ from refactrail.rules import RULE_TITLES_DICT
 from refactrail.sarif import render_sarif_str
 
 
+QUICK_START_STR = """\
+RefacTrail - the Python refactorizer. Paths default to the current folder.
+
+  refactrail lint
+      find likely bugs (comparisons with None, duplicate keys, ...)
+  refactrail format --diff
+      show formatting changes; use --write to apply them
+  refactrail check
+      check structure, naming, type hints and docstrings
+  refactrail fix --diff
+      preview safe fixes; run without --diff to apply them
+  refactrail rules
+      list every rule code
+
+Run "refactrail COMMAND --help" for options or "refactrail --help" for all
+commands.
+"""
+
+
 def add_settings_options_none(parser: argparse.ArgumentParser) -> None:
     """Add the paths and settings options shared by check and fix.
 
@@ -183,6 +202,9 @@ def main(argv_list: list[str] | None = None) -> int:
     Warnings:
         Configuration and path errors are printed, not raised.
     """
+    if not (sys.argv[1:] if argv_list is None else argv_list):
+        sys.stdout.write(QUICK_START_STR)
+        return 0
     arguments = build_parser().parse_args(argv_list)
     try:
         if arguments.command in ("scope", "index", "rename"):

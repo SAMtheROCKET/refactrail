@@ -1,8 +1,9 @@
 name: Release check
 # Builds RefacTrail's wheel and sdist once and verifies the identical files
-# on Linux, Windows and macOS with scripts/release_check.py; builds the
-# refactrail-core wheel on each system and runs the test suite with it, so
-# the Rust engine's parity tests run everywhere. Nothing is uploaded to
+# on Linux, Windows and macOS with scripts/release_check.py. Builds the
+# refactrail-core native wheels for every supported system and runs the
+# test suite with each on its own architecture, plus the pure-Python
+# fallback wheel that pip installs everywhere else. Nothing is uploaded to
 # any package index; the files are kept as run artifacts.
 on:
   workflow_dispatch:
@@ -27,8 +28,9 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install build
       - run: python -m build --wheel --outdir funcloom-dist funcloom-src
+      - run: python -m build --wheel --outdir core-fallback rust/fallback
       - run: python -m build --outdir dist
-      - run: sha256sum dist/* funcloom-dist/*
+      - run: sha256sum dist/* funcloom-dist/* core-fallback/*
       - uses: actions/upload-artifact@v4
         with:
           name: refactrail-dist
@@ -37,6 +39,10 @@ jobs:
         with:
           name: funcloom-wheel
           path: funcloom-dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: refactrail-core-fallback
+          path: core-fallback/
   verify:
     needs: build
     strategy:
@@ -58,22 +64,97 @@ jobs:
         with:
           name: funcloom-wheel
           path: funcloom-wheel
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-core-fallback
+          path: core-fallback
       - run: python -m pip install build "setuptools>=77" twine
       - shell: bash
         run: >
           python scripts/release_check.py --artifacts built
-          --dependency-wheel funcloom-wheel/*.whl --output release-check
+          --dependency-wheel funcloom-wheel/*.whl
+          --dependency-wheel core-fallback/*.whl --output release-check
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: refactrail-release-check-${{ matrix.os }}-${{ matrix.python }}
           path: release-check/
+  fallback:
+    # A system without a native wheel: the fallback must install cleanly
+    # and RefacTrail must work with its Python engine.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-dist
+          path: built
+      - uses: actions/download-artifact@v4
+        with:
+          name: funcloom-wheel
+          path: funcloom-wheel
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-core-fallback
+          path: core-fallback
+      - run: |
+          python -m pip install funcloom-wheel/*.whl core-fallback/*.whl built/*.whl
+          python -m pip check
+          python -c "import refactrail_core as core; assert core.NATIVE is False"
+          python -m unittest discover -s tests
+          python -m refactrail check scripts --no-cache --exit-zero > /dev/null
+          if python -m refactrail lint scripts --engine rust; then exit 1; fi
   core:
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+            test: native
+          - name: linux-x86_64-musl
+            os: ubuntu-latest
+            target: x86_64
+            manylinux: musllinux_1_2
+            test: docker
+            image: python:3.12-alpine
+            platform: linux/amd64
+          - name: linux-aarch64
+            os: ubuntu-latest
+            target: aarch64
+            manylinux: auto
+            test: docker
+            image: python:3.12-slim
+            platform: linux/arm64
+          - name: linux-aarch64-musl
+            os: ubuntu-latest
+            target: aarch64
+            manylinux: musllinux_1_2
+            test: docker
+            image: python:3.12-alpine
+            platform: linux/arm64
+          - name: windows-x86_64
+            os: windows-latest
+            target: x64
+            manylinux: auto
+            test: native
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64
+            manylinux: auto
+            test: native
+          - name: macos-x86_64
+            os: macos-15-intel
+            target: x86_64
+            manylinux: auto
+            test: native
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -83,8 +164,9 @@ jobs:
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: rust
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
           args: --release --locked --out core-dist
-          manylinux: auto
       - uses: actions/download-artifact@v4
         with:
           name: refactrail-dist
@@ -93,15 +175,26 @@ jobs:
         with:
           name: funcloom-wheel
           path: funcloom-wheel
-      - shell: bash
+      - if: matrix.test == 'native'
+        shell: bash
         run: |
-          python -m pip install funcloom-wheel/*.whl built/*.whl
-          python -m pip install --no-deps rust/core-dist/*.whl
+          python -m pip install funcloom-wheel/*.whl rust/core-dist/*.whl built/*.whl
+          python -m pip check
           python -c "import refactrail_core as core; print('core', core.__version__, core.RULE_CONTRACT_VERSION)"
           python -m unittest discover -s tests -v
+      - if: matrix.test == 'docker'
+        uses: docker/setup-qemu-action@v3
+      - if: matrix.test == 'docker'
+        run: >
+          docker run --rm --platform ${{ matrix.platform }}
+          -v "$PWD:/work" -w /work ${{ matrix.image }} sh -c
+          "python -m pip install -q funcloom-wheel/*.whl rust/core-dist/*.whl built/*.whl
+          && python -m pip check
+          && python -c 'import refactrail_core as core; print(\"core\", core.__version__, core.RULE_CONTRACT_VERSION)'
+          && python -m unittest discover -s tests -v"
       - shell: bash
         run: sha256sum rust/core-dist/* || shasum -a 256 rust/core-dist/*
       - uses: actions/upload-artifact@v4
         with:
-          name: refactrail-core-${{ matrix.os }}
+          name: refactrail-core-${{ matrix.name }}
           path: rust/core-dist/

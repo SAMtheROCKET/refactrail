@@ -79,8 +79,8 @@
       "properties": {
         "refactrail.pythonPath": {
           "type": "string",
-          "default": "python",
-          "description": "Python executable containing refactrail 0.3.1a0; relative paths resolve from the workspace root."
+          "default": "",
+          "description": "Python executable to use. Leave empty to use the interpreter selected in the Python extension (or python on PATH); relative paths resolve from the workspace root."
         },
         "refactrail.profile": {
           "type": "string",
