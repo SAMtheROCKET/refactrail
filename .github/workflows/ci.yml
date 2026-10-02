@@ -16,6 +16,15 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
+      # FuncLoom (the rewrite API RefacTrail depends on) is not on PyPI
+      # yet. While its repository is private, the FUNCLOOM_READ_TOKEN
+      # secret holds a read-only token for it; once public, none is needed.
+      - uses: actions/checkout@v4
+        with:
+          repository: SAMtheROCKET/funcloom
+          path: funcloom-src
+          token: ${{ secrets.FUNCLOOM_READ_TOKEN || github.token }}
+      - run: python -m pip install ./funcloom-src
       - run: python -m pip install -e ".[release]"
       - run: python -m unittest discover -s tests
       - run: python -m build
@@ -28,3 +37,13 @@ jobs:
         with:
           node-version: '22'
       - run: node --test editor/refactrail/test/runner.test.js
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --locked -p refactrail-lexer -p refactrail-parser -p refactrail-engine -p refactrail-cli
+        working-directory: rust
