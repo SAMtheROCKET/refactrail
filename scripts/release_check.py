@@ -116,12 +116,17 @@ def check_installed(wheel, source, temporary, logs, label, version, dependency):
     return {**runtime, "verification": "passed", "uninstall": "passed"}
 
 
-def check_artifacts(output, dependency):
+def check_artifacts(output, dependency, skip_twine=False):
     """Test the wheel and a wheel rebuilt solely from the source archive."""
     wheel, archive = distribution_paths(output)
     metadata = inspect_distributions(wheel, archive)
-    run_command([sys.executable, "-m", "twine", "check", "--strict",
-                 wheel, archive], PROJECT_PATH, output / "twine-check.txt")
+    if skip_twine:
+        (output / "twine-check.txt").write_text(
+            "skipped: --skip-twine (run twine check --strict on these exact "
+            "files elsewhere; see SHA256SUMS)\n", encoding="utf-8")
+    else:
+        run_command([sys.executable, "-m", "twine", "check", "--strict",
+                     wheel, archive], PROJECT_PATH, output / "twine-check.txt")
     with tempfile.TemporaryDirectory(prefix="refactrail_release_") as raw:
         temporary = Path(raw).resolve()
         extracted = temporary / "source"
@@ -146,6 +151,7 @@ def check_artifacts(output, dependency):
     return {"metadata": metadata, "sha256": hashes,
             "wheel": wheel_result, "sdist_rebuild": sdist_result,
             "python": sys.version, "platform": sys.platform,
+            "twine_check": "skipped" if skip_twine else "passed",
             "public_upload": False}
 
 
@@ -158,6 +164,9 @@ def main():
                         help="New directory for artifacts and verification logs")
     parser.add_argument("--artifacts", type=Path,
                         help="Existing trusted wheel/sdist to test instead of building")
+    parser.add_argument("--skip-twine", action="store_true",
+                        help="Record twine check as skipped (for hosts whose "
+                        "policy blocks its native modules)")
     arguments = parser.parse_args()
     output = arguments.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -169,7 +178,8 @@ def main():
             run_command([sys.executable, "-m", "build", "--no-isolation",
                          "--outdir", output, PROJECT_PATH], PROJECT_PATH,
                         output / "build.txt")
-        result = check_artifacts(output, arguments.dependency_wheel.resolve())
+        result = check_artifacts(output, arguments.dependency_wheel.resolve(),
+                                 arguments.skip_twine)
         result["dependency_sha256"] = sha256(
             arguments.dependency_wheel.read_bytes()).hexdigest()
         result["status"] = "passed"

@@ -1,0 +1,107 @@
+name: Release check
+# Builds RefacTrail's wheel and sdist once and verifies the identical files
+# on Linux, Windows and macOS with scripts/release_check.py; builds the
+# refactrail-core wheel on each system and runs the test suite with it, so
+# the Rust engine's parity tests run everywhere. Nothing is uploaded to
+# any package index; the files are kept as run artifacts.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # FuncLoom is not on PyPI yet; while its repository is private the
+      # FUNCLOOM_READ_TOKEN secret gives read-only access to it.
+      - uses: actions/checkout@v4
+        with:
+          repository: SAMtheROCKET/funcloom
+          path: funcloom-src
+          token: ${{ secrets.FUNCLOOM_READ_TOKEN || github.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install build
+      - run: python -m build --wheel --outdir funcloom-dist funcloom-src
+      - run: python -m build --outdir dist
+      - run: sha256sum dist/* funcloom-dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: refactrail-dist
+          path: dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: funcloom-wheel
+          path: funcloom-dist/
+  verify:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.12', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-dist
+          path: built
+      - uses: actions/download-artifact@v4
+        with:
+          name: funcloom-wheel
+          path: funcloom-wheel
+      - run: python -m pip install build "setuptools>=77" twine
+      - shell: bash
+        run: >
+          python scripts/release_check.py --artifacts built
+          --dependency-wheel funcloom-wheel/*.whl --output release-check
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: refactrail-release-check-${{ matrix.os }}-${{ matrix.python }}
+          path: release-check/
+  core:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: rust
+          args: --release --locked --out core-dist
+          manylinux: auto
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-dist
+          path: built
+      - uses: actions/download-artifact@v4
+        with:
+          name: funcloom-wheel
+          path: funcloom-wheel
+      - shell: bash
+        run: |
+          python -m pip install funcloom-wheel/*.whl built/*.whl
+          python -m pip install --no-deps rust/core-dist/*.whl
+          python -c "import refactrail_core as core; print('core', core.__version__, core.RULE_CONTRACT_VERSION)"
+          python -m unittest discover -s tests -v
+      - shell: bash
+        run: sha256sum rust/core-dist/* || shasum -a 256 rust/core-dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: refactrail-core-${{ matrix.os }}
+          path: rust/core-dist/
