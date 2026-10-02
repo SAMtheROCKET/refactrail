@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refactrail"
+version = "0.3.1a0"
+description = "The Python refactorizer: linter, formatter and verified refactoring with independent pure-Python and Rust engines"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Sambit Supriya Dash"}]
+keywords = ["python", "refactorizer", "linter", "formatter", "refactoring", "static-analysis", "code-quality", "python-linter", "code-formatter", "sarif", "rust", "developer-tools"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = ["funcloom>=0.10.2a0,<0.11"]
+
+[project.optional-dependencies]
+fast = ["refactrail-core==0.3.1a0"]
+release = ["build>=1.2,<2", "setuptools>=77", "twine>=6,<7"]
+
+[project.scripts]
+refactrail = "refactrail.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/SAMtheROCKET/refactrail"
+Repository = "https://github.com/SAMtheROCKET/refactrail"
+Issues = "https://github.com/SAMtheROCKET/refactrail/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+refactrail = ["data/*.txt", "py.typed"]
+
+[tool.refactrail]
+profile = "strict"

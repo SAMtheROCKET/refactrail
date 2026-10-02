@@ -1,0 +1,126 @@
+{
+  "name": "refactrail",
+  "displayName": "RefacTrail",
+  "description": "RefacTrail, the Python refactorizer: linting, formatting and verified refactoring, locally. Experimental preview.",
+  "keywords": [
+    "python",
+    "refactorizer",
+    "linter",
+    "formatter",
+    "refactoring",
+    "sarif",
+    "code quality"
+  ],
+  "version": "0.3.1",
+  "toolVersion": "0.3.1a0",
+  "publisher": "samtherocket",
+  "license": "MIT",
+  "preview": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "main": "./extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    },
+    "virtualWorkspaces": {
+      "supported": false
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "refactrail.check",
+        "title": "RefacTrail: Check active file"
+      },
+      {
+        "command": "refactrail.preview",
+        "title": "RefacTrail: Preview fixes"
+      },
+      {
+        "command": "refactrail.fix",
+        "title": "RefacTrail: Apply fixes to active file"
+      },
+      {
+        "command": "refactrail.lint",
+        "title": "RefacTrail: Lint general correctness"
+      },
+      {
+        "command": "refactrail.formatPreview",
+        "title": "RefacTrail: Preview independent formatting"
+      },
+      {
+        "command": "refactrail.formatWrite",
+        "title": "RefacTrail: Apply independent formatting"
+      },
+      {
+        "command": "refactrail.scope",
+        "title": "RefacTrail: Inspect lexical scopes"
+      },
+      {
+        "command": "refactrail.index",
+        "title": "RefacTrail: Inspect project import impact"
+      },
+      {
+        "command": "refactrail.rename",
+        "title": "RefacTrail: Preview local variable rename"
+      }
+    ],
+    "configuration": {
+      "title": "RefacTrail",
+      "properties": {
+        "refactrail.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable containing refactrail 0.3.1a0; relative paths resolve from the workspace root."
+        },
+        "refactrail.profile": {
+          "type": "string",
+          "enum": [
+            "standard",
+            "strict"
+          ],
+          "default": "strict",
+          "description": "Explicit refactoring profile."
+        },
+        "refactrail.lineLength": {
+          "type": "integer",
+          "default": 79,
+          "minimum": 40,
+          "maximum": 200,
+          "description": "Target width for supported bracket-group formatting; protected or indivisible lines may remain longer."
+        },
+        "refactrail.bracketStyle": {
+          "type": "string",
+          "default": "own-line",
+          "enum": ["own-line", "hug"],
+          "enumDescriptions": [
+            "Closing brackets on their own line; one element per line when a list is split.",
+            "Closing brackets stay on the last content line; elements are packed while they fit."
+          ],
+          "description": "Layout of statements that formatting splits across lines."
+        },
+        "refactrail.importRoot": {
+          "type": "string",
+          "default": ".",
+          "description": "Project index import root, relative to the workspace. Use src for a src-layout package."
+        }
+      }
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SAMtheROCKET/refactrail"
+  },
+  "scripts": {
+    "test": "node --test test/runner.test.js"
+  }
+}

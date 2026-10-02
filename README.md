@@ -1,0 +1,156 @@
+# RefacTrail
+
+**The Python refactorizer.** A linter, formatter and verified refactoring
+tool with two independent engines, pure Python and Rust, built on its own
+parser. Run correctness checks and bounded formatting, or check structure,
+naming, types and documentation against a chosen profile.
+
+Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMtheROCKET/funcloom) (functionizer), [RefacTrail](https://github.com/SAMtheROCKET/refactrail) (refactorizer) and RepoContour (architect, planned). Each installs and works on its own.
+
+**0.3.1a0 is an unpublished experimental alpha.** Python 3.12 or newer is
+required. RefacTrail has its own package, CLI and VS Code extension. It
+requires FuncLoom 0.10.2a0 for its rewrite API; FuncLoom has no dependency on
+RefacTrail. No LLM, account or network is needed at runtime.
+
+## Install locally
+
+Install the two local wheels together (replace the paths as needed):
+
+```powershell
+python -m pip install --no-index path/to/funcloom-0.10.2a0-py3-none-any.whl path/to/refactrail-0.3.0a0-py3-none-any.whl
+python -m refactrail --version
+python -m refactrail check src --profile strict
+python -m refactrail fix src --diff
+```
+
+For development, install FuncLoom from its source folder first, then run
+`python -m pip install -e .` here. Nothing is uploaded by these local tools.
+The repository URL names the intended `SAMtheROCKET/refactrail` repository.
+
+## General correctness and independent formatting
+
+```powershell
+python -m refactrail lint src
+python -m refactrail lint src --output-format sarif
+python -m refactrail format examples/general_demo.py --diff
+python -m refactrail format examples/general_demo.py --check
+python -m refactrail format examples/general_demo.py --write
+```
+
+`lint` provides nine RC correctness checks without imposing personal naming
+rules. `format` uses an independent CPython AST/tokenize implementation; its
+default is a read-only preview. It makes bounded whitespace edits and retains
+literal/comment spelling, directives, BOM and original line endings.
+Use `--line-length 79` for bracketed comma-group wrapping. Explicit Python
+notebooks and discovered stubs are supported; `--notebooks` includes notebooks
+in folder formatting. This is a documented style subset, not full Black parity.
+
+```powershell
+python -m refactrail format examples/analysis.ipynb --line-length 79 --diff
+python -m refactrail scope examples/project_demo/invoice.py
+python -m refactrail index examples/project_demo --changed invoice.py
+python -m refactrail rename examples/project_demo/invoice.py --function calculate_total --old amount --new base_amount_int
+```
+
+`scope` exposes partial compiler binding evidence. `index` inventories symbols
+and possible import impact under an explicit import root. `rename` produces a
+read-only, hash-linked proposal for a bounded local-variable subset; parameters,
+public APIs, nested scopes and dynamic namespaces are refused. See
+[the workflow and examples](docs/EXPANSION_USAGE.md).
+
+`lint --jobs 4` enables worker processes on larger batches. Lint caching hashes
+source bytes, rule selection, tool/interpreter version and path-sensitive policy;
+use `--no-cache` to disable it. No cache is used to authorize source changes.
+
+See [the independent engines](docs/INDEPENDENT_ENGINES.md) for contracts,
+APIs and limitations, and [the expansion roadmap](docs/EXPANSION_ROADMAP.md)
+for broader formatter, data-flow and repository-refactoring work. These
+engines do not invoke Ruff or Black. The optional native RT parser dependency
+and FuncLoom structural-rewrite dependency remain as documented below.
+
+## Checking and fixing
+
+`check` reports line, function and main-block sizes; docstrings and their
+sections; missing annotations; naming conventions and verb prefixes;
+constants and their location; and top-level script execution. The strict
+profile adds generic-name and dtype-suffix checks. Defaults are 79 columns,
+40 preferred / 50 maximum function lines, and 100 main-block lines.
+
+```powershell
+python -m refactrail check src --profile strict --statistics
+python -m refactrail check src --output-format json
+python -m refactrail rules
+python -m refactrail fix src --diff
+python -m refactrail fix src
+```
+
+`fix --diff` previews edits without writing. `fix` edits files in place:
+selected fixes add eligible `-> None` annotations, create function docstring
+skeletons, wrap supported lines and split supported long functions. It
+checks compilation, rejects linked files and changed source, and replaces
+each file atomically. Review diffs and run your project's tests. A failed
+file does not roll back other files in a multi-file run.
+
+These are structural checks, not proof of unchanged behavior. Annotations
+and docstrings can affect reflection. There is no automatic domain naming,
+public-API renaming, inferred annotation insertion beyond the bounded None
+case, or arbitrary repository restructuring. Missing meanings need user
+context. Unsupported functions can remain long. Use FuncLoom's explicit
+`modularize` command to create a separate package draft.
+
+Exit codes: check returns 0 with no findings, 1 for findings, 2 for usage
+errors. `--exit-zero` explicitly overrides finding failures. Diff returns 1
+when edits are proposed or files are skipped; fix returns 1 for skipped
+files. Syntax, encoding and internal errors cannot be hidden by selection
+or ignore lists. Suppression markers apply only inside real comment tokens.
+
+## Configuration
+
+```toml
+[tool.refactrail]
+profile = "strict"
+line-length = 79
+function-preferred-lines = 40
+function-max-lines = 50
+main-max-lines = 100
+select = ["RT"]
+ignore = []
+```
+
+Widths must be 40-200; the preferred function size cannot exceed the maximum.
+See [the rule contract](docs/RULES.md) and [design](docs/DESIGN.md).
+
+## Optional native checker
+
+`--engine auto` selects a compatible `refactrail-core` when installed and
+otherwise uses Python. `--engine python` selects the reference implementation.
+The native core is a separate PyO3/Rayon distribution using Ruff parser
+crates. Both engines first use CPython compilation without executing the
+source, then perform the same rule checks. Engine parity is tested on
+fixtures and a local corpus; it is not a guarantee for every Python program.
+
+The local native wheel currently targets Linux x86_64 / CPython 3.12+ ABI3.
+Install it from a local wheel with `pip install --no-index --no-deps WHEEL`.
+Windows and macOS native wheels are not validated. Python fallback is usable
+on Windows; current local Python-package verification covers Windows and
+Linux on CPython 3.12. See [benchmark evidence](docs/BENCHMARKS.md); no speed
+or accuracy superiority over Ruff or Black is claimed.
+
+## Editor and release preparation
+
+[The VS Code extension](editor/refactrail/README.md) provides explicit check,
+diff-preview and fix commands. Install its local VSIX, select the Python
+environment containing these packages, and use a trusted workspace.
+
+```powershell
+python scripts/verify.py
+python scripts/release_check.py --output dist/0.3.0a0 --dependency-wheel path/to/funcloom-0.10.2a0-py3-none-any.whl
+```
+
+The release script builds and checks a wheel and source archive, installs
+both in fresh environments, tests installed code and checks uninstallation.
+CI definitions cover Windows/Linux/macOS and Python 3.12-3.14; those remote
+jobs have not run. [Release preparation](docs/RELEASE_PREPARATION.md) lists
+the remaining platform and launch work. No public release has been made.
+
+[MIT](LICENSE), copyright 2026 Sambit Supriya Dash.

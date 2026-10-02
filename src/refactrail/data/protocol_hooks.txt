@@ -1,0 +1,14 @@
+# Method names required by frameworks; exempt from RT202 and RT204.
+# One exact name per line; a trailing * matches any suffix.
+# Shared by the Python and Rust engines.
+asyncSetUp
+asyncTearDown
+generic_visit
+run
+setUp
+setUpClass
+setUpModule
+tearDown
+tearDownClass
+tearDownModule
+visit_*

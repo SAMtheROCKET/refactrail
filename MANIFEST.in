@@ -1,0 +1,13 @@
+include README.md LICENSE pyproject.toml CHANGELOG.md
+recursive-include docs *.md
+recursive-include tests *.py
+recursive-include examples *.py
+recursive-include scripts *.py
+recursive-include editor *.js *.json *.md LICENSE
+include .github/workflows/ci.yml
+prune reports
+prune dist
+prune .venv
+prune rust
+global-exclude *.py[cod]
+exclude AGENTS.md

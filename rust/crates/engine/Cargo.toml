@@ -1,0 +1,17 @@
+[package]
+name = "refactrail-engine"
+version = "0.3.1"
+edition = "2021"
+license = "MIT"
+description = "RefacTrail's rule engine in pure Rust (same findings as the Python engine)"
+publish = false
+
+[lib]
+name = "refactrail_engine"
+path = "src/lib.rs"
+
+[dependencies]
+memchr = "2.7"
+regex = "1.13"
+refactrail-lexer = { path = "../lexer" }
+refactrail-parser = { path = "../parser" }

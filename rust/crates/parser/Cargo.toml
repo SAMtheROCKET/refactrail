@@ -1,0 +1,19 @@
+[package]
+name = "refactrail-parser"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "RefacTrail's own Python parser: CPython-compatible syntax trees, no third-party parser code"
+publish = false
+
+[lib]
+name = "refactrail_parser"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rt-dump-ast"
+path = "src/bin/dump_ast.rs"
+
+[dependencies]
+refactrail-lexer = { path = "../lexer" }
+memchr = "2.7"

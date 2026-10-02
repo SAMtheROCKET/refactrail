@@ -1,0 +1,19 @@
+# Generic binding names reported by RT205 (strict profile).
+# One exact name per line; shared by the Python and Rust engines.
+bar
+baz
+data
+foo
+info
+item
+obj
+res
+result
+ret
+stuff
+temp
+thing
+tmp
+val
+value
+var

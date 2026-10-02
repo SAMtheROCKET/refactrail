@@ -1,0 +1,272 @@
+[
+  {
+    "name": "aho-corasick",
+    "version": "1.1.5",
+    "license": "Unlicense OR MIT",
+    "files": [
+      "THIRD_PARTY_LICENSES/aho-corasick-1.1.5/COPYING",
+      "THIRD_PARTY_LICENSES/aho-corasick-1.1.5/LICENSE-MIT",
+      "THIRD_PARTY_LICENSES/aho-corasick-1.1.5/UNLICENSE"
+    ]
+  },
+  {
+    "name": "cc",
+    "version": "1.5.1",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/cc-1.5.1/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/cc-1.5.1/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "crossbeam-deque",
+    "version": "0.8.8",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/crossbeam-deque-0.8.8/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/crossbeam-deque-0.8.8/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "crossbeam-epoch",
+    "version": "0.9.21",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/crossbeam-epoch-0.9.21/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/crossbeam-epoch-0.9.21/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "crossbeam-utils",
+    "version": "0.8.23",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/crossbeam-utils-0.8.23/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/crossbeam-utils-0.8.23/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "either",
+    "version": "1.18.0",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/either-1.18.0/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/either-1.18.0/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "find-msvc-tools",
+    "version": "0.1.14",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/find-msvc-tools-0.1.14/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/find-msvc-tools-0.1.14/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "heck",
+    "version": "0.5.0",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/heck-0.5.0/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/heck-0.5.0/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "libc",
+    "version": "0.2.189",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/libc-0.2.189/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/libc-0.2.189/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "libmimalloc-sys",
+    "version": "0.1.49",
+    "license": "MIT",
+    "files": [
+      "THIRD_PARTY_LICENSES/libmimalloc-sys-0.1.49/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "memchr",
+    "version": "2.8.3",
+    "license": "Unlicense OR MIT",
+    "files": [
+      "THIRD_PARTY_LICENSES/memchr-2.8.3/COPYING",
+      "THIRD_PARTY_LICENSES/memchr-2.8.3/LICENSE-MIT",
+      "THIRD_PARTY_LICENSES/memchr-2.8.3/UNLICENSE"
+    ]
+  },
+  {
+    "name": "mimalloc",
+    "version": "0.1.52",
+    "license": "MIT",
+    "files": [
+      "THIRD_PARTY_LICENSES/mimalloc-0.1.52/LICENSE.txt"
+    ]
+  },
+  {
+    "name": "once_cell",
+    "version": "1.21.4",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/once_cell-1.21.4/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/once_cell-1.21.4/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "portable-atomic",
+    "version": "1.15.0",
+    "license": "Apache-2.0 OR MIT",
+    "files": [
+      "THIRD_PARTY_LICENSES/portable-atomic-1.15.0/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/portable-atomic-1.15.0/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "proc-macro2",
+    "version": "1.0.107",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/proc-macro2-1.0.107/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/proc-macro2-1.0.107/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "pyo3",
+    "version": "0.29.3",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/pyo3-0.29.3/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/pyo3-0.29.3/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "pyo3-build-config",
+    "version": "0.29.3",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/pyo3-build-config-0.29.3/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/pyo3-build-config-0.29.3/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "pyo3-ffi",
+    "version": "0.29.3",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/pyo3-ffi-0.29.3/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/pyo3-ffi-0.29.3/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "pyo3-macros",
+    "version": "0.29.3",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/pyo3-macros-0.29.3/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/pyo3-macros-0.29.3/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "pyo3-macros-backend",
+    "version": "0.29.3",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/pyo3-macros-backend-0.29.3/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/pyo3-macros-backend-0.29.3/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "quote",
+    "version": "1.0.47",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/quote-1.0.47/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/quote-1.0.47/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "rayon",
+    "version": "1.12.0",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/rayon-1.12.0/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/rayon-1.12.0/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "rayon-core",
+    "version": "1.13.0",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/rayon-core-1.13.0/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/rayon-core-1.13.0/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "regex",
+    "version": "1.13.1",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/regex-1.13.1/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/regex-1.13.1/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "regex-automata",
+    "version": "0.4.18",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/regex-automata-0.4.18/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/regex-automata-0.4.18/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "regex-syntax",
+    "version": "0.8.11",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/regex-syntax-0.8.11/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/regex-syntax-0.8.11/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "shlex",
+    "version": "2.0.1",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/shlex-2.0.1/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/shlex-2.0.1/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "syn",
+    "version": "2.0.119",
+    "license": "MIT OR Apache-2.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/syn-2.0.119/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/syn-2.0.119/LICENSE-MIT"
+    ]
+  },
+  {
+    "name": "target-lexicon",
+    "version": "0.13.5",
+    "license": "Apache-2.0 WITH LLVM-exception",
+    "files": [
+      "THIRD_PARTY_LICENSES/target-lexicon-0.13.5/LICENSE"
+    ]
+  },
+  {
+    "name": "unicode-ident",
+    "version": "1.0.26",
+    "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+    "files": [
+      "THIRD_PARTY_LICENSES/unicode-ident-1.0.26/LICENSE-APACHE",
+      "THIRD_PARTY_LICENSES/unicode-ident-1.0.26/LICENSE-MIT",
+      "THIRD_PARTY_LICENSES/unicode-ident-1.0.26/LICENSE-UNICODE"
+    ]
+  }
+]

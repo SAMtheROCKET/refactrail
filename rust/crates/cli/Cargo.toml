@@ -1,0 +1,22 @@
+[package]
+name = "refactrail-cli"
+version = "0.3.1"
+edition = "2021"
+license = "MIT"
+description = "Native `refactrail check` command: no Python needed"
+publish = false
+
+[[bin]]
+name = "refactrail-native"
+path = "src/main.rs"
+
+[dependencies]
+rayon = "1.12"
+mimalloc = { version = "0.1", default-features = false }
+refactrail-engine = { path = "../engine" }
+refactrail-parser = { path = "../parser" }
+refactrail-lexer = { path = "../lexer" }
+
+[[bin]]
+name = "rt-phases"
+path = "src/bin/phases.rs"
