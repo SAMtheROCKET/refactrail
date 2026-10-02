@@ -50,14 +50,17 @@ The extension never downloads Python packages. Its `samtherocket` publisher
 identity is intended, not registered by these scripts.
 
 RefacTrail's optional native checker is separately packaged under `rust/`.
-Its build includes third-party license notices. Only Linux x86_64 has been
-built locally; use the Python engine on other platforms until native wheels
-are verified. FuncLoom itself has no native or third-party runtime dependency.
+Its build includes third-party license notices, regenerated from the
+locked dependency graph by `scripts/gen_third_party_licenses.py`. CI builds
+and tests its wheels for Linux x86_64, Windows x86_64 and macOS arm64; other
+platforms use the Python engine. FuncLoom itself has no native or third-party runtime dependency.
 
 ## Evidence boundaries
 
-Current local validation targets CPython 3.12 on Windows and Linux. Prepared
-CI covers Python 3.12-3.14 on Windows, Linux and macOS; remote CI has not run.
+CI runs the test suite on Windows, Linux and macOS with Python 3.12-3.14.
+The Release check workflow (run by hand or on a `v*` tag) builds the wheel
+and sdist once and verifies the identical files on all three systems with
+Python 3.12 and 3.14; it uploads nothing. First green runs: 3 October 2026.
 Editor installation and automated command checks do not establish a complete
 interactive notebook/user-interface acceptance test. Benchmarks are local
 measurements and do not establish superiority over Ruff or Black.

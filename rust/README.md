@@ -1,22 +1,28 @@
-# RefacTrail native checker
+# refactrail-core
 
-Experimental optional checker for RefacTrail 0.1.1a0. This separate Python
-distribution uses PyO3, Rayon and Ruff parser crates. It requires
-`refactrail==0.1.1a0`, which supplies settings and CPython compilation
-validation. Neither engine executes the target source.
+The Rust engine for [RefacTrail](https://github.com/SAMtheROCKET/refactrail),
+the Python refactorizer. This optional distribution makes `refactrail check`,
+`lint` and `format` faster with output identical to RefacTrail's Python
+engine. It requires `refactrail==0.3.1a0`.
 
-Install the base RefacTrail and FuncLoom wheels first, then this local wheel.
-`refactrail check src --engine rust` selects it explicitly. Only Linux
-x86_64 has been built and tested locally; other platforms use Python until
-native wheels are validated. No performance superiority over other tools
-is claimed. Parity tests cover the supported contract and observed corpus,
+The engine is RefacTrail's own: a Rust lexer, parser, compile checks and
+symbol table, written from the language reference with CPython 3.12 as the
+test oracle. It contains no Ruff code. Neither engine imports or executes
+the checked source. CPython is asked only for the exact message of a file
+that fails to compile, so both engines report it identically.
+
+Install RefacTrail and FuncLoom first, then this wheel. `--engine auto`
+uses it when installed; `--engine rust` selects it explicitly. Wheels
+(CPython 3.12+ ABI3) are built and tested in CI for Linux x86_64
+(manylinux2014), Windows x86_64 and macOS arm64; other platforms use the
+Python engine. Parity tests cover the recorded corpora and fuzzed inputs,
 not every possible Python program.
 
-Build a wheel with `maturin build --release` or a source archive with
-`maturin sdist`. Building requires Rust, the Python build toolchain and the
-locked Cargo dependencies, including Ruff source crates. Release builds
-must rerun the parent package's tests and `scripts/compare_engines.py`.
+Build a wheel with `maturin build --release --locked`. Building requires
+Rust and the locked Cargo dependencies. Release builds must rerun the
+parent package's tests and the parity scripts.
 
 The core's own code is MIT licensed. Dependency notices and their upstream
-license declarations are included in `THIRD_PARTY_LICENSES`, with an index.
-Publication remains the owner's decision; local build commands upload nothing.
+license declarations are in `THIRD_PARTY_LICENSES`, with an index;
+regenerate them with `scripts/gen_third_party_licenses.py`. Local build
+commands upload nothing.

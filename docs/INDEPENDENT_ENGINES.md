@@ -85,9 +85,10 @@ host validation from packaging alone.
 
 ## Independence and future work
 
-RC linting and formatting currently run in Python. The optional native RT
-style checker remains compatible and still depends on Ruff parser crates;
-no Ruff linting/formatting engine has been integrated. FuncLoom remains a
+RC linting and formatting run in both engines: Python, and the Rust
+engine built on RefacTrail's own parser (no Ruff code; see
+[DUAL_ENGINES.md](DUAL_ENGINES.md)). No Ruff linting or formatting engine
+has been integrated. FuncLoom remains a
 package dependency for the existing structural rewrite APIs. See
 [the exact rules](RULES.md) and [the expansion roadmap](EXPANSION_ROADMAP.md).
 No speed superiority, broad accuracy superiority or public release is claimed.

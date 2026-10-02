@@ -22,10 +22,10 @@ Each increment may need multiple releases. AI-assisted proposals are a
 later optional layer; they must retain source evidence and pass independent
 validation. Never execute user projects just to infer behavior or types.
 
-The existing optional native RT checker still uses Ruff parser crates;
-its checking rules are RefacTrail's. The new RC and formatting engines use
-the standard library. Removing the native parser dependency is a separate
-design/compatibility migration, not completed by this increment.
+The native engine now uses RefacTrail's own Rust parser (the Ruff parser
+crates were removed in October 2026), and implements the RT, RC, scope,
+format and index operations with output identical to the Python engine;
+see [DUAL_ENGINES.md](DUAL_ENGINES.md).
 
 Initial RC rules deliberately diagnose without guessing repairs. Broad
 public-API renaming and arbitrary semantic optimization are not enabled.

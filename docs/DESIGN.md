@@ -21,8 +21,10 @@ rules, scope/index/rename analysis and formatting are Python-only. See
   [the same rule contract](RULES.md). Parity tests compare findings.
 - Compilation rejects contextually invalid Python before either rule engine
   runs. Target source is never imported or executed for analysis.
-- Rust uses PyO3, Rayon and Ruff parser crates. Python supplies compilation
-  validation; native checking is not a standalone Rust executable.
+- Rust uses its own lexer, parser, compile checks and symbol table, with
+  PyO3 and Rayon; it contains no Ruff code. The PyO3 module asks CPython
+  only for the exact message of a file that fails to compile; the
+  standalone `refactrail-native` executable needs no Python at all.
 - The cache includes source content, interpreter version, rule version and
   settings. Malformed cache entries are discarded and checked again.
 - CLI and editor wrappers invoke the same public engines. The editor uses

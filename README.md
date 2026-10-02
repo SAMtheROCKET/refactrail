@@ -65,8 +65,8 @@ use `--no-cache` to disable it. No cache is used to authorize source changes.
 See [the independent engines](docs/INDEPENDENT_ENGINES.md) for contracts,
 APIs and limitations, and [the expansion roadmap](docs/EXPANSION_ROADMAP.md)
 for broader formatter, data-flow and repository-refactoring work. These
-engines do not invoke Ruff or Black. The optional native RT parser dependency
-and FuncLoom structural-rewrite dependency remain as documented below.
+engines do not invoke or contain Ruff or Black. The FuncLoom
+structural-rewrite dependency remains as documented below.
 
 ## Checking and fixing
 
@@ -124,17 +124,21 @@ See [the rule contract](docs/RULES.md) and [design](docs/DESIGN.md).
 
 `--engine auto` selects a compatible `refactrail-core` when installed and
 otherwise uses Python. `--engine python` selects the reference implementation.
-The native core is a separate PyO3/Rayon distribution using Ruff parser
-crates. Both engines first use CPython compilation without executing the
-source, then perform the same rule checks. Engine parity is tested on
-fixtures and a local corpus; it is not a guarantee for every Python program.
+The native core is a separate PyO3/Rayon distribution built on
+RefacTrail's own Rust lexer, parser, compile checks and symbol table; it
+contains no Ruff code. `check`, `lint` and `format` accept `--engine`, and
+the standalone `refactrail-native` binary runs `check`, `lint`, `scope`,
+`format` and `index` without Python. Outputs are byte-identical to the
+Python engine on the recorded corpora and fuzzed inputs, with CPython as the
+oracle; see [the dual-engine record](docs/DUAL_ENGINES.md). Parity evidence
+is not a guarantee for every Python program.
 
-The local native wheel currently targets Linux x86_64 / CPython 3.12+ ABI3.
-Install it from a local wheel with `pip install --no-index --no-deps WHEEL`.
-Windows and macOS native wheels are not validated. Python fallback is usable
-on Windows; current local Python-package verification covers Windows and
-Linux on CPython 3.12. See [benchmark evidence](docs/BENCHMARKS.md); no speed
-or accuracy superiority over Ruff or Black is claimed.
+Native wheels (CPython 3.12+ ABI3) are built and tested in CI for Linux
+x86_64 (manylinux2014), Windows x86_64 and macOS arm64; other platforms use
+the Python engine. Install a local wheel with
+`pip install --no-index --no-deps WHEEL`. See
+[benchmark evidence](docs/BENCHMARKS.md) for measured timings and their
+limits.
 
 ## Editor and release preparation
 
@@ -144,13 +148,14 @@ environment containing these packages, and use a trusted workspace.
 
 ```powershell
 python scripts/verify.py
-python scripts/release_check.py --output dist/0.3.0a0 --dependency-wheel path/to/funcloom-0.10.2a0-py3-none-any.whl
+python scripts/release_check.py --output dist/0.3.1a0 --dependency-wheel path/to/funcloom-0.10.3a0-py3-none-any.whl
 ```
 
 The release script builds and checks a wheel and source archive, installs
 both in fresh environments, tests installed code and checks uninstallation.
-CI definitions cover Windows/Linux/macOS and Python 3.12-3.14; those remote
-jobs have not run. [Release preparation](docs/RELEASE_PREPARATION.md) lists
-the remaining platform and launch work. No public release has been made.
+CI runs the tests on Windows, Linux and macOS with Python 3.12-3.14, and
+the Release check workflow verifies the identical built files on all three
+systems. [Release preparation](docs/RELEASE_PREPARATION.md) lists the
+remaining launch work. No public release has been made.
 
 [MIT](LICENSE), copyright 2026 Sambit Supriya Dash.

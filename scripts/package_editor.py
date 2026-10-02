@@ -21,7 +21,8 @@ def manifest_bytes(metadata):
     })
     xml.SubElement(details, "DisplayName").text = metadata["displayName"]
     xml.SubElement(details, "Description").text = metadata["description"]
-    xml.SubElement(details, "Tags").text = "python,refactoring,preview"
+    xml.SubElement(details, "Tags").text = ",".join(
+        [*metadata.get("keywords", ["python", "refactoring"]), "preview"])
     xml.SubElement(details, "Categories").text = "Programming Languages"
     properties = xml.SubElement(details, "Properties")
     for name, value in {

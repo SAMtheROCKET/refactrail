@@ -1,10 +1,30 @@
 # Current measurement status
 
-The historical measurements below used 0.1.0a0. They do not establish the
-performance of 0.1.1a0, which adds contextual CPython compilation before
-native checks, comment-token suppression and new strict rules. Current
-parity and timings are recorded in the release verification evidence.
-There is no comparison with Ruff or Black and no universal speed claim.
+## 0.3.1a0, own Rust engine, 3 October 2026
+
+200 standard-library files, strict profile, native disk in WSL2 (Ubuntu
+24.04, 4 CPUs used), median of repeated runs, including process start-up
+(`scripts/` harnesses; method in [DUAL_ENGINES.md](DUAL_ENGINES.md)):
+
+| Tool | Threads | Median |
+| --- | ---: | ---: |
+| RefacTrail native, strict profile | 4 | 0.035 s |
+| RefacTrail native, standard profile | 4 | 0.033 s |
+| Ruff check, E and F rules | default | 0.040 s |
+| Ruff check, broad rule set | default | 0.222 s |
+| RefacTrail native, strict profile | 1 | 0.091 s |
+| Ruff check, E and F rules | 1 | 0.079 s |
+| Ruff check, broad rule set | 1 | 0.293 s |
+
+On four threads RefacTrail was faster than Ruff's E,F rule set on this
+corpus; on one thread it was slower. The rule sets differ, so this is not a
+like-for-like comparison and no general speed claim is made. Through the
+Python CLI on the standard library (Linux, 4 cores, including interpreter
+start-up), `--engine rust` took 1.3 s for `lint` (Python engine 7.0 s) and
+3.6 s for `format --line-length 79` (25.6 s), with byte-identical output.
+
+The sections below are historical: they were measured before RefacTrail had
+its own parser, when the native core still used Ruff parser crates.
 
 ## 0.1.1a0 local check, 1 October 2026
 
