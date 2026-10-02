@@ -7,6 +7,7 @@ name: Release check
 # any package index; the files are kept as run artifacts.
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     tags: ['v*']
 permissions:
@@ -16,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # FuncLoom is not on PyPI yet; while its repository is private the
-      # FUNCLOOM_READ_TOKEN secret gives read-only access to it.
+      # Builds FuncLoom from its public repository (a FUNCLOOM_READ_TOKEN
+      # secret is used only if one exists).
       - uses: actions/checkout@v4
         with:
           repository: SAMtheROCKET/funcloom

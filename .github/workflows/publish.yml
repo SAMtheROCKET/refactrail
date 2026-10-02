@@ -1,0 +1,82 @@
+name: Publish
+# Publishes one tagged version to TestPyPI or PyPI with Trusted Publishing
+# (no stored password or token). Run it by hand from a version tag
+# ("Use workflow from" -> tag v...). It first runs the full release check
+# (every native wheel tested on its own architecture), then uploads exactly
+# the files that check verified: refactrail-core first (environment
+# pypi-core), then refactrail. Each upload waits for the environment's
+# required reviewer. FuncLoom must already be on the chosen index.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Package index
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+permissions:
+  contents: read
+concurrency:
+  group: publish
+  cancel-in-progress: false
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run only from a tag that matches every package version
+        shell: bash
+        run: |
+          read_version() { python3 -c "import tomllib, sys; print(tomllib.load(open(sys.argv[1], 'rb'))['project']['version'])" "$1"; }
+          version=$(read_version pyproject.toml)
+          for file in rust/pyproject.toml rust/fallback/pyproject.toml; do
+            if [ "$(read_version "$file")" != "$version" ]; then
+              echo "::error::$file does not match version $version."
+              exit 1
+            fi
+          done
+          if [ "$GITHUB_REF_TYPE" != tag ] || [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Run this workflow from tag v$version (ran from $GITHUB_REF_TYPE $GITHUB_REF_NAME)."
+            exit 1
+          fi
+  release-check:
+    needs: guard
+    uses: ./.github/workflows/release-check.yml
+    secrets: inherit
+  publish-core:
+    needs: release-check
+    runs-on: ubuntu-latest
+    environment: pypi-core
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: refactrail-core-*
+          merge-multiple: true
+          path: dist
+      - run: ls -l dist && sha256sum dist/*
+      - if: inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - if: inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+  publish:
+    needs: publish-core
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-dist
+          path: dist
+      - run: ls -l dist && sha256sum dist/*
+      - if: inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - if: inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
