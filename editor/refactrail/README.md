@@ -8,7 +8,7 @@ refactoring, without leaving the editor.
 1. Install this extension, open a project and trust the workspace.
 2. Run any **RefacTrail:** command from the Command Palette (Ctrl+Shift+P).
 3. The first time, if RefacTrail is not in your Python environment yet,
-   click **Install**. The extension runs `pip install refactrail==0.3.2a0`
+   click **Install**. The extension runs `pip install refactrail==0.4.0a0`
    in that interpreter (FuncLoom and the fast Rust engine come with it),
    and only after your click.
 

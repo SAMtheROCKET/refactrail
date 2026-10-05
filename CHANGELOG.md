@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0a0 - Python 3.13 and 3.14 grammar, 2026-10-06
 
 - The Rust engine parses Python 3.13 and 3.14 natively: type parameter
   defaults, t-strings, `except A, B:`, 3.14's string prefix checks and

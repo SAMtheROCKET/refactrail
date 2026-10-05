@@ -1,3 +1,3 @@
 """RefacTrail version."""
 
-__version__ = "0.3.2a0"
+__version__ = "0.4.0a0"

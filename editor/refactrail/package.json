@@ -11,8 +11,8 @@
     "sarif",
     "code quality"
   ],
-  "version": "0.3.2",
-  "toolVersion": "0.3.2a0",
+  "version": "0.4.0",
+  "toolVersion": "0.4.0a0",
   "publisher": "samtherocket",
   "license": "MIT",
   "preview": true,

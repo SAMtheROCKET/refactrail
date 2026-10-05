@@ -7,7 +7,7 @@ naming, types and documentation against a chosen profile.
 
 Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMtheROCKET/funcloom) (functionizer), [RefacTrail](https://github.com/SAMtheROCKET/refactrail) (refactorizer) and RepoContour (architect, planned). Each installs and works on its own.
 
-**0.3.2a0 is an experimental alpha, published on PyPI.** Python 3.12 or newer is
+**0.4.0a0 is an experimental alpha, published on PyPI.** Python 3.12 or newer is
 required. RefacTrail has its own package, CLI and VS Code extension. It
 installs FuncLoom automatically for its rewrite API; FuncLoom has no
 dependency on RefacTrail. No LLM, account or network is needed at runtime.
@@ -46,7 +46,7 @@ and offers to install RefacTrail there with one click.
 ```yaml
 repos:
   - repo: https://github.com/SAMtheROCKET/refactrail
-    rev: v0.3.2a0
+    rev: v0.4.0a0
     hooks:
       - id: refactrail-lint
       - id: refactrail-format
@@ -166,7 +166,10 @@ See [the rule contract](docs/RULES.md) and [design](docs/DESIGN.md).
 otherwise uses Python. `--engine python` selects the reference implementation.
 The native core is a separate PyO3/Rayon distribution built on
 RefacTrail's own Rust lexer, parser, compile checks and symbol table; it
-contains no Ruff code. `check`, `lint` and `format` accept `--engine`, and
+contains no Ruff code. It parses Python 3.12, 3.13 and 3.14 code with
+each version's own grammar (the running Python's in the package;
+`--python-version` in `refactrail-native`, default 3.14), verified
+against each CPython version. `check`, `lint` and `format` accept `--engine`, and
 the standalone `refactrail-native` binary runs `check`, `lint`, `scope`,
 `format` and `index` without Python. Outputs are byte-identical to the
 Python engine on the recorded corpora and fuzzed inputs, with CPython as the
@@ -188,7 +191,7 @@ environment containing these packages, and use a trusted workspace.
 
 ```powershell
 python scripts/verify.py
-python scripts/release_check.py --output dist/0.3.2a0 --dependency-wheel path/to/funcloom-0.10.3a0-py3-none-any.whl
+python scripts/release_check.py --output dist/0.4.0a0 --dependency-wheel path/to/funcloom-0.10.3a0-py3-none-any.whl
 ```
 
 The release script builds and checks a wheel and source archive, installs
