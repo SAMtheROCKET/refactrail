@@ -18,30 +18,31 @@ fn read_settings(settings: &Bound<'_, PyAny>) -> PyResult<Settings> {
     })
 }
 
-/// Findings for one analysis; for a compilation failure CPython supplies
-/// the exact message, so both engines report identical findings (nothing
-/// is executed).
-fn finish(py: Python<'_>, path: &str, raw: &[u8], analysis: Analysis, settings: &Settings) -> PyResult<Vec<Row>> {
+/// Findings for one analysis. When the own parser rejects a file, the
+/// running CPython decides: if it rejects it too, it supplies the exact
+/// message, so both engines report identical findings; if it accepts it
+/// (syntax newer than the engine's grammar), None asks the caller to check
+/// the file with the Python engine. Nothing is executed.
+fn finish(py: Python<'_>, path: &str, raw: &[u8], analysis: Analysis, settings: &Settings) -> PyResult<Option<Vec<Row>>> {
     match analysis {
-        Analysis::Rows(rows) => Ok(rows),
-        Analysis::CompileFailure { line, offset, message } => {
-            if !settings.is_enabled("RT001") {
-                return Ok(Vec::new());
-            }
+        Analysis::Rows(rows) => Ok(Some(rows)),
+        Analysis::CompileFailure { .. } => {
             let text = refactrail_engine::source::decode_source(raw).unwrap_or("");
             let exact: Option<(usize, usize, String)> =
                 py.import("refactrail.validation")?.getattr("compile_error_tuple")?.call1((text, path))?.extract()?;
-            Ok(vec![match exact {
-                Some((line, column, message)) => row(path, line, column, "RT001", message),
-                None => row(path, line, offset, "RT001", format!("Syntax error: {message}")),
-            }])
+            Ok(match exact {
+                None => None,
+                Some(_) if !settings.is_enabled("RT001") => Some(Vec::new()),
+                Some((line, column, message)) => Some(vec![row(path, line, column, "RT001", message)]),
+            })
         }
     }
 }
 
 /// Check one file's bytes; `settings` is a refactrail.models.Settings.
+/// None means: check this file with the Python engine (see `finish`).
 #[pyfunction]
-fn check_source(py: Python<'_>, path: &str, raw: &[u8], settings: &Bound<'_, PyAny>) -> PyResult<Vec<Row>> {
+fn check_source(py: Python<'_>, path: &str, raw: &[u8], settings: &Bound<'_, PyAny>) -> PyResult<Option<Vec<Row>>> {
     let settings = read_settings(settings)?;
     let analysis = py.detach(|| refactrail_engine::with_analysis_stack(|| analyze(path, raw, &settings)));
     finish(py, path, raw, analysis, &settings)
@@ -51,7 +52,7 @@ fn check_source(py: Python<'_>, path: &str, raw: &[u8], settings: &Bound<'_, PyA
 /// core); an unreadable file raises OSError.
 #[pyfunction]
 #[pyo3(signature = (paths, settings, jobs=0))]
-fn check_files(py: Python<'_>, paths: Vec<String>, settings: &Bound<'_, PyAny>, jobs: usize) -> PyResult<Vec<Vec<Row>>> {
+fn check_files(py: Python<'_>, paths: Vec<String>, settings: &Bound<'_, PyAny>, jobs: usize) -> PyResult<Vec<Option<Vec<Row>>>> {
     let settings = read_settings(settings)?;
     let mut sources = Vec::with_capacity(paths.len());
     for path in &paths {
@@ -135,6 +136,6 @@ fn refactrail_core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(lint_files, module)?)?;
     module.add_function(wrap_pyfunction!(format_text, module)?)?;
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    module.add("RULE_CONTRACT_VERSION", 3)?;
+    module.add("RULE_CONTRACT_VERSION", 4)?;
     Ok(())
 }

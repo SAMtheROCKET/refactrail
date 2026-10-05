@@ -7,4 +7,4 @@ the same results.
 """
 
 NATIVE = False
-__version__ = "0.3.1a0"
+__version__ = "0.3.2a0"

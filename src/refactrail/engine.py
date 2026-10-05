@@ -23,7 +23,7 @@ from refactrail.source import build_source_file, decode_source_text
 PARALLEL_MINIMUM_FILES_INT = 64
 CACHE_FOLDER_STR = ".refactrail_cache"
 ENGINES_TUPLE = ("auto", "python", "rust")
-RULE_CONTRACT_VERSION_INT = 3
+RULE_CONTRACT_VERSION_INT = 4
 FINDING_ORDER_KEY = attrgetter("path", "line", "column", "code",
                                "severity", "message")
 
@@ -318,7 +318,9 @@ def run_checks_dict(
     if engine_str == "rust":
         rows_list = load_rust_core().check_files(paths_list, settings_info,
                                                  jobs_int)
-        return {path_str: [Finding(*row_tuple) for row_tuple in path_rows]
+        return {path_str: check_file_list(path_str, settings_info)
+                if path_rows is None
+                else [Finding(*row_tuple) for row_tuple in path_rows]
                 for path_str, path_rows in zip(paths_list, rows_list)}
     workers_int = jobs_int or os.cpu_count() or 1
     if workers_int == 1 or len(paths_list) < PARALLEL_MINIMUM_FILES_INT:

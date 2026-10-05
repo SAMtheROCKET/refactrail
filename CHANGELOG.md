@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.3.2a0 - Python 3.13/3.14 syntax fix, 2026-10-05
+
+- Fix: with the Rust engine (the default once installed), `refactrail
+  check` reported a false RT001 syntax error for valid code that uses
+  syntax newer than the engine's Python 3.12 grammar (Python 3.13 type
+  parameter defaults, 3.14 template strings and `except A, B:`). When the
+  engine's parser rejects a file that the running Python accepts, the file
+  is now checked by the Python engine, so results are correct on every
+  supported Python. Engine contract 4.
+- Deselecting RT001 no longer hides findings for such files.
+- Regression tests for 3.13/3.14 syntax run on every interpreter.
+
+## 0.3.1a0 - first PyPI release, 2026-10-05
 
 - Easy installation: `pip install refactrail` now also installs the Rust
   engine (refactrail-core). Native wheels cover Windows x86_64, macOS arm64

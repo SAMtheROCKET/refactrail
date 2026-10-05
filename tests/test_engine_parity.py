@@ -7,12 +7,14 @@ since the two parsers place and word syntax errors differently.
 """
 
 from dataclasses import astuple, replace
+from pathlib import Path
+import tempfile
 import unittest
 
 from refactrail.correctness_batch import (
     check_snapshot_list, run_rust_snapshots_list,
 )
-from refactrail.engine import check_text_list
+from refactrail.engine import check_paths_list, check_text_list
 from refactrail.formatting import format_document_str, format_engine_str
 from refactrail.models import Settings
 
@@ -125,10 +127,50 @@ class EngineParityTests(unittest.TestCase):
             for settings_info in settings_list:
                 with self.subTest(source=raw_bytes[:40],
                                   profile=settings_info.profile):
+                    rust_rows = refactrail_core.check_source(
+                        "t.py", raw_bytes, settings_info)
+                    if rust_rows is None:
+                        # Newer syntax than the Rust grammar; the Python
+                        # engine checks the file (see NewSyntaxTests).
+                        continue
+                    self.assertEqual(reduce_rows_list(rust_rows),
+                                     run_python_list(raw_bytes,
+                                                     settings_info))
+
+
+NEW_SYNTAX_SOURCES_TUPLE = (
+    b'name = "x"\nmessage = t"hello {name}"\n',
+    b"try:\n    pass\nexcept ValueError, TypeError:\n    pass\n",
+    b"def first[T = int](items: list[T]) -> T:\n    return items[0]\n",
+    b"class Box[*Ts = *tuple[int], **P = [int]]:\n    pass\n",
+    b"type Pair[T = str] = tuple[T, T]\n",
+    b"def f():\n    try:\n        pass\n    finally:\n        return 1\n",
+)
+
+
+@unittest.skipIf(not hasattr(refactrail_core, "check_files"),
+                 "native refactrail_core not installed")
+class NewSyntaxTests(unittest.TestCase):
+    """Syntax from Python 3.13 and 3.14 gives the same findings in both
+    engines on whatever interpreter runs the tests."""
+
+    def test_new_syntax_matches_python_engine(self) -> None:
+        """Compare check results for each new-syntax source.
+
+        Returns:
+            None: Fails on the first differing source.
+        """
+        settings_info = Settings(profile="strict")
+        with tempfile.TemporaryDirectory() as folder_str:
+            for index_int, raw_bytes in enumerate(NEW_SYNTAX_SOURCES_TUPLE):
+                path = Path(folder_str) / f"new_{index_int}.py"
+                path.write_bytes(raw_bytes)
+                with self.subTest(source=raw_bytes[:40]):
                     self.assertEqual(
-                        reduce_rows_list(refactrail_core.check_source(
-                            "t.py", raw_bytes, settings_info)),
-                        run_python_list(raw_bytes, settings_info))
+                        check_paths_list([str(path)], settings_info, 1,
+                                         None, "rust"),
+                        check_paths_list([str(path)], settings_info, 1,
+                                         None, "python"))
 
 
 LINT_SOURCES_TUPLE = (

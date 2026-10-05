@@ -199,3 +199,39 @@ jobs:
         with:
           name: refactrail-core-${{ matrix.name }}
           path: rust/core-dist/
+  core-newer-python:
+    # The native wheels (CPython 3.12+ ABI3) on newer interpreters, where
+    # syntax beyond the engine's grammar falls back to the Python engine.
+    needs: core
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, wheel: linux-x86_64, python: '3.13'}
+          - {os: ubuntu-latest, wheel: linux-x86_64, python: '3.14'}
+          - {os: windows-latest, wheel: windows-x86_64, python: '3.14'}
+          - {os: macos-latest, wheel: macos-arm64, python: '3.14'}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-core-${{ matrix.wheel }}
+          path: core-dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: refactrail-dist
+          path: built
+      - uses: actions/download-artifact@v4
+        with:
+          name: funcloom-wheel
+          path: funcloom-wheel
+      - shell: bash
+        run: |
+          python -m pip install funcloom-wheel/*.whl core-dist/*.whl built/*.whl
+          python -m pip check
+          python -c "import refactrail_core as core; assert hasattr(core, 'check_files')"
+          python -m unittest discover -s tests -v

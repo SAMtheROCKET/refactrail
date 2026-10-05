@@ -66,8 +66,11 @@ def compare_file_list(path: Path, settings_info: Settings) -> list[str]:
     python_list = normalize_rows_list([astuple(finding) for finding in
                                        check_text_list(str(path), raw_bytes,
                                                        settings_info)])
-    rust_list = normalize_rows_list(refactrail_core.check_source(
-        str(path), raw_bytes, settings_info))
+    rust_rows = refactrail_core.check_source(str(path), raw_bytes,
+                                             settings_info)
+    if rust_rows is None:
+        return []  # newer syntax than the Rust grammar: Python checks it
+    rust_list = normalize_rows_list(rust_rows)
     return ([f"- {row_tuple}" for row_tuple in python_list
              if row_tuple not in rust_list]
             + [f"+ {row_tuple}" for row_tuple in rust_list
