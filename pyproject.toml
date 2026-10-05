@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "refactrail"
 version = "0.4.0a0"
-description = "The Python refactorizer: linter, formatter and verified refactoring with independent pure-Python and Rust engines"
+description = "The Python refactorizer: auto-refactor, lint and format Python with verified fixes and independent pure-Python and Rust engines"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "Sambit Supriya Dash"}]
-keywords = ["python", "refactorizer", "linter", "formatter", "refactoring", "static-analysis", "code-quality", "python-linter", "code-formatter", "sarif", "rust", "developer-tools"]
+keywords = ["python", "refactorizer", "auto-refactor", "automatic-refactoring", "refactoring", "linter", "formatter", "python-linter", "code-formatter", "rust", "static-analysis", "code-quality", "jupyter", "notebook", "sarif", "ci", "developer-tools"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",

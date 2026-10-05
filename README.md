@@ -5,7 +5,21 @@ tool with two independent engines, pure Python and Rust, built on its own
 parser. Run correctness checks and bounded formatting, or check structure,
 naming, types and documentation against a chosen profile.
 
-Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMtheROCKET/funcloom) (functionizer), [RefacTrail](https://github.com/SAMtheROCKET/refactrail) (refactorizer) and [FlowBlueprint](https://github.com/SAMtheROCKET/flowblueprint) (architect, in development). Each installs and works on its own.
+Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMtheROCKET/funcloom) (functionizer), [RefacTrail](https://github.com/SAMtheROCKET/refactrail) (refactorizer) and [FlowBlueprint](https://github.com/SAMtheROCKET/flowblueprint) (architect: script or notebook to architecture diagram). Each installs and works on its own.
+
+**Use RefacTrail to:**
+
+- auto-refactor Python safely: bounded fixes and rename previews that are
+  verified, never guessed;
+- lint for likely bugs and format code with a fast Rust engine, or the
+  identical pure-Python engine, in CI (text, JSON or SARIF output);
+- enforce naming, structure, type-hint and docstring conventions across a
+  team with a chosen rule profile;
+- check and format Jupyter notebooks as well as scripts.
+
+Built for developers, data scientists and teams that want clean,
+consistent code; pair it with FuncLoom to turn scripts and notebooks into
+functions and FlowBlueprint to draw the architecture.
 
 **0.4.0a0 is an experimental alpha, published on PyPI.** Python 3.12 or newer is
 required. RefacTrail has its own package, CLI and VS Code extension. It
