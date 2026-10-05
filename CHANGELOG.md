@@ -6,6 +6,13 @@
   F404-F901 without scope analysis), computed by RefacTrail's own engine.
   Ruff 0.16.9 used as an external oracle reports the same 6,009 findings
   on a 6,988-file corpus. Select them with `--select E4,E7,F`.
+- R1b: the scope-based Pyflakes codes (F401, F402, F403, F405, F406,
+  F811, F821, F822, F823, F841, F842) with a flow-ordered binding model.
+  With them, Ruff's whole default rule set agrees on 19,827 of 19,830
+  corpus findings and 2,050 of 2,054 standard-library findings.
+- Compiler scope analysis understands PEP 695 type parameter scopes.
+- `# noqa` on the first line of a multi-line import or `__all__`
+  statement applies to the names inside it.
 - `# ruff: noqa` and `# flake8: noqa` exempt a whole file (optionally for
   listed codes) in both engines.
 - Compiler-rejected statements such as `break` outside a loop are reported

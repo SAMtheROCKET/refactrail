@@ -1,15 +1,17 @@
 # RefacTrail rule specification
 
-## pycodestyle- and Pyflakes-compatible codes (R1a, unreleased)
+## pycodestyle- and Pyflakes-compatible codes (R1a and R1b, unreleased)
 
 `lint --select E4,E7,F` (or any prefix) adds codes with the meaning and
 numbering of pycodestyle and Pyflakes, so existing `# noqa: E701` comments
 and configurations carry over. They are computed by RefacTrail itself from
 Python's tokenizer, syntax tree and compiler symbol tables; no other
 linter's code is used. Ruff 0.16.9 serves only as an external test oracle
-(`scripts/ruff_oracle.py`): on the 6,988-file corpus RefacTrail and Ruff
-report the same 6,009 findings (code, line and column), and 753 of 754 on
-the Python 3.12 standard library.
+(`scripts/ruff_oracle.py`). For Ruff's whole default set (E4, E7, E9
+and F; 58 codes, E902 aside) on the 6,988-file corpus, RefacTrail reports
+19,827 of Ruff's 19,830 findings at the same code, line and column (17
+more of its own); on the Python 3.12 standard library 2,050 of 2,054 (1
+more). The remaining differences are listed below.
 
 | Codes | Meaning |
 | --- | --- |
@@ -31,6 +33,14 @@ the Python 3.12 standard library.
 | F701, F702, F704, F706, F707 | `break`/`continue` outside a loop, `yield`/`await`/`return` outside a function, bare `except:` before other handlers. |
 | F722 | A string annotation that is not a valid expression. |
 | F901 | `raise NotImplemented`. |
+| F401 | An import never read. Explicit re-exports (`import x as x`), names in `__all__` (top-level `=`, `+=`, `.append()`, `.extend()`), `__future__` and class-body imports are exempt; a read of a package name uses every `import package.sub` before it. |
+| F402 | A `for` loop variable shadowing an import. |
+| F403, F405, F406 | `from m import *` used; a name that may come from it; a star import outside module level. |
+| F811 | A definition, class or import replaced while unused in the same branch, or shadowed by a function's parameter or first local binding; `@overload`, property setters, `_` names and `TYPE_CHECKING` imports are exempt. |
+| F821 | An undefined name, following execution order: module code sees only earlier bindings, function bodies see the finished module; `except NameError` guards are honoured. |
+| F822 | A name in `__all__` that the module never binds (package submodule files are fine). |
+| F823 | A local read before its assignment while an outer binding exists. |
+| F841, F842 | A local (or `except ... as` name) assigned or annotated but never read; tuple unpacking, `_` names and `locals()` users are exempt. |
 
 The compiler rejects the F404/F407/F62x/F70x cases outright. When the
 matching F code is selected, linting continues with the syntax tree and
@@ -39,12 +49,24 @@ RT001 is still reported, so a file that does not compile is never clean.
 `# ruff: noqa` and `# flake8: noqa` (optionally with codes) exempt the
 whole file in both engines.
 
-Not yet: the scope-based Pyflakes codes (F401, F402, F403, F405, F406,
-F811, F821, F822, F823, F841, F842; planned as R1b) and E902. Until the
-Rust engine has these codes (R1c), `lint --engine auto` runs E and F
-selections with the Python engine and `--engine rust` refuses them.
-Files with PEP 695 type parameters fall back to file-wide builtin
-detection for E721.
+The scope codes use a flow-ordered binding model of their own
+(`compat_bindings.py`, `compat_scope_checker.py`); RefacTrail's compiler
+scope analysis now also understands PEP 695 type parameter scopes.
+`# noqa` on the first line of a multi-line import or `__all__` statement
+applies to the names inside it.
+
+Known differences from Ruff on the corpora (about 25 findings in
+26,000): a function that rebinds itself through `global` (pydoc's
+`pager`), loop variables in some functions shadowing a module import
+(F402), a few F811 cases with names re-imported in `try` bodies or
+redefined after `if`/`else` definitions, one `except ... as` name in a
+handler that only re-raises, and three F401 cases involving submodule
+imports. E902 (unreadable file) is reported as RT002 instead.
+
+Until the Rust engine has these codes (R1c), `lint --engine auto` runs E
+and F selections with the Python engine and `--engine rust` refuses them.
+The Python engine checks the standard library's 2,050 findings in about
+2.8 s; Ruff takes 0.08 s; the Rust port is meant to close that gap.
 
 ## Scope and formatting expansion (0.3.0a0)
 

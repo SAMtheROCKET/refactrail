@@ -198,22 +198,25 @@ class RuleContext:
         return is_code_enabled_bool(self.settings_info, code_str)
 
     def report_none(self, code_str: str, position_tuple: tuple[int, int],
-                    message_str: str) -> None:
+                    message_str: str, parent_line_int: int = 0) -> None:
         """Add a finding unless disabled or suppressed with # noqa.
 
         Args:
             code_str (str): Rule code.
             position_tuple (tuple[int, int]): Line and column.
             message_str (str): Explanation.
+            parent_line_int (int): First line of the statement holding
+                the finding (multi-line imports, __all__), or 0.
         Returns:
             None: Appends to findings_list.
         Warnings:
-            # noqa applies to the line where the finding is reported.
+            # noqa applies to the line where the finding is reported and
+            to its statement's first line when one is given.
         """
         if not self.is_enabled_bool(code_str):
             return
         line_int, column_int = position_tuple
-        for key_int in (0, line_int):
+        for key_int in {0, line_int, parent_line_int}:
             suppressed = self.source_info.noqa.get(key_int, frozenset())
             if suppressed is None or any(code_str.startswith(prefix_str)
                                          for prefix_str in suppressed):

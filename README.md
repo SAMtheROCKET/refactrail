@@ -93,9 +93,10 @@ python -m refactrail format examples/general_demo.py --write
 
 `lint` provides nine RC correctness checks without imposing personal naming
 rules. `lint --select E4,E7,F` adds pycodestyle- and Pyflakes-compatible
-codes (same numbers, so `# noqa: E701` comments carry over); on a
-6,988-file corpus they give exactly the findings Ruff gives. The
-scope-based Pyflakes codes such as F401 and F821 are next; see
+codes (same numbers, so `# noqa: E701` comments carry over), including
+unused imports (F401), undefined names (F821) and unused variables
+(F841). Across Ruff's whole default rule set they agree with Ruff on
+19,827 of 19,830 findings in a 6,988-file corpus; see
 [the rules](docs/RULES.md). `format` uses an independent CPython AST/tokenize implementation; its
 default is a read-only preview. It makes bounded whitespace edits and retains
 literal/comment spelling, directives, BOM and original line endings.

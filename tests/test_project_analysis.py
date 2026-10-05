@@ -1,6 +1,5 @@
 ﻿"""Source evidence, cache invalidation and bounded rename regressions."""
 
-import ast
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 import json

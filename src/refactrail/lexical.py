@@ -14,6 +14,8 @@ from refactrail.lexical_scopes import ScopeCollector
 from refactrail.rules.context import RuleContext
 from refactrail.source import build_source_file, locate_node_tuple
 
+CLOSURE_OWNER_TYPES_TUPLE = ("function", "type parameter",
+                             "type parameters")
 IMPLICIT_NAMES_SET = {
     "__name__", "__file__", "__package__", "__doc__", "__builtins__",
     "__spec__", "__loader__", "__cached__", "__annotations__", "__path__",
@@ -303,13 +305,14 @@ def find_closure_owner_int(collector_info: ScopeCollector,
         table_info (symtable.SymbolTable): Reading scope.
         name_str (str): Compiler identifier.
     Returns:
-        int | None: Owner identity if a function binding is found.
+        int | None: Owner identity if a function binding, or a type
+        parameter of an enclosing generic definition, is found.
     Warnings:
         Class namespaces are excluded from ordinary closure lookup.
     """
     parent_info = collector_info.parents_dict.get(table_info.get_id())
     while parent_info is not None:
-        if parent_info.get_type() == "function":
+        if str(parent_info.get_type()) in CLOSURE_OWNER_TYPES_TUPLE:
             if name_str in parent_info.get_identifiers() and (
                 parent_info.lookup(name_str).is_local()
             ):

@@ -15,6 +15,7 @@ from refactrail.compat_pycodestyle import (
 from refactrail.compat_pyflakes import (
     check_pyflakes_module_none, check_pyflakes_node_none,
 )
+from refactrail.compat_scope_checker import check_scope_codes_none
 from refactrail.engine import parse_quietly_node
 from refactrail.models import Finding, Settings, is_code_enabled_bool
 from refactrail.lexical import check_lexical_none
@@ -35,6 +36,7 @@ LINT_COMPILE_ERRORS_TUPLE = (
     ("future feature", "F407"),
     ("multiple starred expressions in assignment", "F622"),
     ("too many expressions in star-unpacking assignment", "F621"),
+    ("import * only allowed at module level", "F406"),
 )
 CORRECTNESS_TITLES_DICT = {
     "RC201": "Unresolved lexical name",
@@ -93,6 +95,17 @@ CORRECTNESS_TITLES_DICT = {
     "F707": "Bare except is not the last handler",
     "F722": "Syntax error in forward annotation",
     "F901": "raise NotImplemented",
+    "F401": "Unused import",
+    "F402": "Import shadowed by loop variable",
+    "F403": "Star import used",
+    "F405": "Name may be undefined or from star imports",
+    "F406": "Star import outside module level",
+    "F811": "Redefinition of unused name",
+    "F821": "Undefined name",
+    "F822": "Undefined name in __all__",
+    "F823": "Local variable referenced before assignment",
+    "F841": "Unused local variable",
+    "F842": "Unused annotated local variable",
 }
 
 
@@ -174,6 +187,7 @@ def run_checks_none(context_info: RuleContext) -> None:
         check_pyflakes_node_none(context_info, node, spec_ids_set)
     check_lexical_none(context_info)
     check_pyflakes_module_none(context_info)
+    check_scope_codes_none(context_info)
     if any(context_info.is_enabled_bool(code_str)
            for code_str in ("E701", "E702", "E703")):
         check_statement_tokens_none(context_info)

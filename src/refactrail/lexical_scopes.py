@@ -3,6 +3,8 @@
 import ast
 import symtable
 
+TYPE_PARAMETER_BLOCKS_TUPLE = ("type parameter", "type parameters")
+
 
 class ScopeCollector(ast.NodeVisitor):
     """Collect lexical reads and imports using the compiler symbol tables.
@@ -77,7 +79,9 @@ class ScopeCollector(ast.NodeVisitor):
         matches_list = [child_info for child_info in parent_info.get_children()
                         if child_info.get_name() == name_str
                         and child_info.get_lineno() == node.lineno
-                        and child_info.get_id() not in self.used_tables_set]
+                        and child_info.get_id() not in self.used_tables_set
+                        and str(child_info.get_type())
+                        not in TYPE_PARAMETER_BLOCKS_TUPLE]
         if not matches_list:
             raise ValueError(
                 f"Unresolved compiler scope at line {node.lineno}")
@@ -106,6 +110,63 @@ class ScopeCollector(ast.NodeVisitor):
             self.visit(node)
             self.annotation_bool = previous_bool
 
+    def enter_type_params_bool(self, node: ast.AST) -> bool:
+        """Enter the compiler scope of a definition's type parameters.
+
+        Args:
+            node (ast.AST): Function, class or type alias definition.
+        Returns:
+            bool: True when a type parameter scope was entered (the caller
+            leaves it with self.stack_list.pop()); False without
+            type parameters.
+        Warnings:
+            Bounds, constraints and defaults are visited in their own
+            lazily evaluated child scopes.
+        """
+        if not getattr(node, "type_params", None):
+            return False
+        name_str = (node.name.id if isinstance(node, ast.TypeAlias)
+                    else node.name)
+        parent_info = self.stack_list[-1]
+        matches_list = [child_info for child_info in parent_info.get_children()
+                        if child_info.get_name() == name_str
+                        and child_info.get_lineno() == node.lineno
+                        and child_info.get_id() not in self.used_tables_set
+                        and str(child_info.get_type())
+                        in TYPE_PARAMETER_BLOCKS_TUPLE]
+        if not matches_list:
+            raise ValueError(
+                f"Unresolved type parameter scope at line {node.lineno}")
+        child_info = matches_list[0]
+        self.used_tables_set.add(child_info.get_id())
+        self.parents_dict[child_info.get_id()] = parent_info
+        self.tables_dict[child_info.get_id()] = child_info
+        self.stack_list.append(child_info)
+        for parameter_node in node.type_params:
+            for expression_node in (getattr(parameter_node, "bound", None),
+                                    getattr(parameter_node, "default_value",
+                                            None)):
+                if expression_node is not None:
+                    self.collect_scope_none(parameter_node,
+                                            parameter_node.name,
+                                            [expression_node])
+        return True
+
+    def visit_TypeAlias(self, node: ast.AST) -> None:
+        """Visit a type alias value in its lazily evaluated scope.
+
+        Args:
+            node (ast.AST): ``type X[...] = value`` statement.
+        Returns:
+            None: Records the value's reads.
+        Warnings:
+            The alias value is evaluated only when first used.
+        """
+        is_generic_bool = self.enter_type_params_bool(node)
+        self.collect_scope_none(node, node.name.id, [node.value])
+        if is_generic_bool:
+            self.stack_list.pop()
+
     def collect_function_none(self, node: ast.AST) -> None:
         """Visit defaults in the parent and function bodies in child scopes.
 
@@ -121,6 +182,7 @@ class ScopeCollector(ast.NodeVisitor):
         for expression_node in [*node.args.defaults, *node.args.kw_defaults]:
             if expression_node is not None:
                 self.visit(expression_node)
+        is_generic_bool = self.enter_type_params_bool(node)
         for argument_node in [*node.args.posonlyargs, *node.args.args,
                               *node.args.kwonlyargs, node.args.vararg,
                               node.args.kwarg]:
@@ -130,6 +192,8 @@ class ScopeCollector(ast.NodeVisitor):
         body_list = [node.body] if isinstance(node, ast.Lambda) else node.body
         self.collect_scope_none(node, getattr(node, "name", "lambda"),
                                  body_list)
+        if is_generic_bool:
+            self.stack_list.pop()
 
     visit_FunctionDef = collect_function_none
     visit_AsyncFunctionDef = collect_function_none
@@ -145,13 +209,18 @@ class ScopeCollector(ast.NodeVisitor):
         Warnings:
             Methods do not close over ordinary class-local bindings.
         """
-        for expression_node in [*node.decorator_list, *node.bases,
+        for expression_node in node.decorator_list:
+            self.visit(expression_node)
+        is_generic_bool = self.enter_type_params_bool(node)
+        for expression_node in [*node.bases,
                                 *(entry.value for entry in node.keywords)]:
             self.visit(expression_node)
         previous_str = self.class_str
         self.class_str = node.name
         self.collect_scope_none(node, node.name, node.body)
         self.class_str = previous_str
+        if is_generic_bool:
+            self.stack_list.pop()
 
     def collect_comprehension_none(self, node: ast.AST) -> None:
         """Visit the first iterable outside the comprehension scope.

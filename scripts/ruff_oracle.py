@@ -95,6 +95,10 @@ def main() -> int:
                                      ("refactrail", ours_only)):
             for row in sorted(rows_list)[:shown_int]:
                 print(f"    only {label_str}: {row[0]}:{row[1]}:{row[2]}")
+                if "--show-source" in sys.argv:
+                    lines_list = Path(row[0]).read_text(
+                        encoding="utf-8", errors="replace").splitlines()
+                    print(f"        | {lines_list[row[1] - 1].strip()[:110]}")
     return 0 if ruff_set == ours_set else 1
 
 
