@@ -7,7 +7,7 @@ naming, types and documentation against a chosen profile.
 
 Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMtheROCKET/funcloom) (functionizer), [RefacTrail](https://github.com/SAMtheROCKET/refactrail) (refactorizer) and RepoContour (architect, planned). Each installs and works on its own.
 
-**0.3.1a0 is an unpublished experimental alpha.** Python 3.12 or newer is
+**0.3.1a0 is an experimental alpha, published on PyPI.** Python 3.12 or newer is
 required. RefacTrail has its own package, CLI and VS Code extension. It
 installs FuncLoom automatically for its rewrite API; FuncLoom has no
 dependency on RefacTrail. No LLM, account or network is needed at runtime.
@@ -21,9 +21,7 @@ pip install refactrail
 That one command also installs FuncLoom and the fast Rust engine (a native
 wheel for Windows, macOS and Linux; on other systems a small fallback is
 installed and the Python engine gives the same results, so nothing ever
-needs compiling). Python 3.12 or newer is required. Until the first PyPI
-release, install from GitHub instead:
-`pip install git+https://github.com/SAMtheROCKET/refactrail.git`.
+needs compiling). Python 3.12 or newer is required.
 
 Then, in any project folder:
 
