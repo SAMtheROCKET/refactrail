@@ -58,12 +58,8 @@ impl<'a> Context<'_, 'a> {
         if !self.settings.is_enabled(code) {
             return;
         }
-        if let Some(suppressed) = self.source.noqa.get(&position.0) {
-            match suppressed {
-                None => return,
-                Some(codes) if codes.iter().any(|prefix| code.starts_with(prefix.as_str())) => return,
-                _ => {}
-            }
+        if crate::source::is_suppressed(&self.source.noqa, position.0, code) {
+            return;
         }
         let _ = severity_of(code);
         self.findings.push(Finding { line: position.0, column: position.1, code, message });

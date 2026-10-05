@@ -130,15 +130,20 @@ def resolve_binding_tuple(collector_info: ScopeCollector,
 
 
 def collect_lexical_dict(text_str: str, path_str: str,
-                         tree_node: ast.Module) -> dict:
+                         tree_node: ast.Module,
+                         resolve_limited_bool: bool = False) -> dict:
     """Build repeatable scope records and located reads for one source.
 
     Args:
         text_str (str): Decoded Python source.
         path_str (str): Source path used in diagnostics.
         tree_node (ast.Module): Already validated source tree.
+        resolve_limited_bool (bool): Also resolve reads in files with
+            wildcard imports, dynamic namespaces or type parameters
+            (for rules that only need builtin and local facts).
     Returns:
-        dict: Read, import and scope records with explicit limitations.
+        dict: Read, import and scope records with explicit limitations;
+        "scope_limited" tells whether such constructs were found.
     Warnings:
         Compiler table identities are internal and never serialized.
     """
@@ -148,15 +153,18 @@ def collect_lexical_dict(text_str: str, path_str: str,
     limits_list = collect_scope_limits_list(tree_node)
     if limits_list:
         report_dict["limitations"].extend(limits_list)
-        return report_dict
+        if not resolve_limited_bool:
+            return report_dict
     collector_info = ScopeCollector(text_str, path_str)
     try:
         visit_deeply_none(collector_info, tree_node)
     except ValueError as error:
         report_dict["limitations"].append(str(error))
         return report_dict
-    return build_lexical_report_dict(collector_info, text_str, path_str,
-                                     tree_node, report_dict)
+    report_dict = build_lexical_report_dict(collector_info, text_str,
+                                            path_str, tree_node, report_dict)
+    report_dict["diagnostics_supported"] = not limits_list
+    return report_dict
 
 
 def build_lexical_report_dict(collector_info: ScopeCollector, text_str: str,
@@ -265,8 +273,9 @@ def check_lexical_none(context_info: RuleContext) -> None:
                for code_str in ("RC201", "RC202")):
         return
     source_info = context_info.source_info
-    report_dict = collect_lexical_dict(source_info.text, source_info.path,
-                                       context_info.tree)
+    report_dict = context_info.lexical_report_dict
+    if not report_dict["diagnostics_supported"]:
+        return
     for read_dict in report_dict["reads"]:
         if read_dict["resolution"] == "unresolved" and not (
             read_dict["annotation"]

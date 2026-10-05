@@ -75,7 +75,7 @@ Cross-module rename, extraction/move transactions and rollback remain future wor
 
 ## Caching, parallelism and API
 
-`lint` caches advisory diagnostics in `.refactrail_cache/correctness-v3.json` under
+`lint` caches advisory diagnostics in `.refactrail_cache/correctness-v4.json` under
 the current directory. Keys include original bytes, configuration, tool/interpreter
 version, and stub/initializer policy. Malformed cache data is discarded. Use
 `--no-cache` for an uncached run. All pending checks use immutable byte snapshots;

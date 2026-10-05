@@ -98,6 +98,21 @@ def check_correctness_paths_list(paths_list: list[str],
     return sorted(findings_list)
 
 
+def is_native_selection_bool(select_tuple: tuple[str, ...]) -> bool:
+    """Whether the Rust engine implements every selected code.
+
+    Args:
+        select_tuple (tuple[str, ...]): Selected code prefixes.
+    Returns:
+        bool: True when every prefix selects RC codes only.
+    Warnings:
+        The pycodestyle (E) and Pyflakes (F) compatible codes run in the
+        Python engine until the Rust engine has them too.
+    """
+    return bool(select_tuple) and all(prefix_str.startswith("RC")
+                                      for prefix_str in select_tuple)
+
+
 def run_rust_snapshots_list(snapshots_list: list[tuple],
                             jobs_int: int) -> list:
     """Lint snapshots with the Rust engine, threads instead of processes.

@@ -92,7 +92,11 @@ python -m refactrail format examples/general_demo.py --write
 ```
 
 `lint` provides nine RC correctness checks without imposing personal naming
-rules. `format` uses an independent CPython AST/tokenize implementation; its
+rules. `lint --select E4,E7,F` adds pycodestyle- and Pyflakes-compatible
+codes (same numbers, so `# noqa: E701` comments carry over); on a
+6,988-file corpus they give exactly the findings Ruff gives. The
+scope-based Pyflakes codes such as F401 and F821 are next; see
+[the rules](docs/RULES.md). `format` uses an independent CPython AST/tokenize implementation; its
 default is a read-only preview. It makes bounded whitespace edits and retains
 literal/comment spelling, directives, BOM and original line endings.
 Use `--line-length 79` for bracketed comma-group wrapping. Explicit Python

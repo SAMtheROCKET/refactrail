@@ -12,6 +12,10 @@ LINE_BREAK_PATTERN = re.compile(r"\r\n|\r|\n")
 NOQA_PATTERN = re.compile(
     r"#\s*noqa(?::\s*(?P<codes>[A-Za-z0-9]+(?:[\s,]+[A-Za-z0-9]+)*))?",
     re.IGNORECASE)
+FILE_NOQA_PATTERN = re.compile(
+    r"^#\s*(?:flake8|ruff)\s*:\s*noqa\b"
+    r"(?::\s*(?P<codes>[A-Za-z0-9]+(?:[\s,]+[A-Za-z0-9]+)*))?",
+    re.IGNORECASE)
 UTF8_NAMES_TUPLE = ("utf-8", "utf8", "utf_8", "utf-8-sig", "utf8-sig")
 
 
@@ -85,6 +89,8 @@ def parse_noqa_dict(lines_list: list[str]) -> dict:
         lines_list (list[str]): Physical lines.
     Returns:
         dict: Line number to a frozenset of codes, or None for all codes.
+        Key 0 holds file-wide exemptions ("# ruff: noqa" or
+        "# flake8: noqa", optionally with codes).
     Warnings:
         Markers inside string literals do not suppress findings.
     """
@@ -95,6 +101,10 @@ def parse_noqa_dict(lines_list: list[str]) -> dict:
         if token_info.type != tokenize.COMMENT:
             continue
         number_int = token_info.start[0]
+        file_info = FILE_NOQA_PATTERN.match(token_info.string)
+        if file_info is not None:
+            record_file_noqa_none(noqa_dict, file_info.group("codes"))
+            continue
         match_info = NOQA_PATTERN.search(token_info.string)
         if match_info is None:
             continue
@@ -103,6 +113,25 @@ def parse_noqa_dict(lines_list: list[str]) -> dict:
             code_str.upper() for code_str in re.split(r"[\s,]+", codes_str)
             if code_str)
     return noqa_dict
+
+
+def record_file_noqa_none(noqa_dict: dict, codes_str: str | None) -> None:
+    """Merge one file-wide exemption into key 0.
+
+    Args:
+        noqa_dict (dict): Suppressions being built (changed in place).
+        codes_str (str | None): Listed codes, or None for every code.
+    Returns:
+        None: A blanket exemption wins; listed codes accumulate.
+    Warnings:
+        None.
+    """
+    if codes_str is None or noqa_dict.get(0, frozenset()) is None:
+        noqa_dict[0] = None
+        return
+    noqa_dict[0] = noqa_dict.get(0, frozenset()) | frozenset(
+        code_str.upper() for code_str in re.split(r"[\s,]+", codes_str)
+        if code_str)
 
 
 def build_source_file(path_str: str, text_str: str) -> SourceFile:

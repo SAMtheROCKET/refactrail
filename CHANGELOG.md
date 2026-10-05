@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `lint` gains 47 pycodestyle- and Pyflakes-compatible codes (E401-E743,
+  F404-F901 without scope analysis), computed by RefacTrail's own engine.
+  Ruff 0.16.9 used as an external oracle reports the same 6,009 findings
+  on a 6,988-file corpus. Select them with `--select E4,E7,F`.
+- `# ruff: noqa` and `# flake8: noqa` exempt a whole file (optionally for
+  listed codes) in both engines.
+- Compiler-rejected statements such as `break` outside a loop are reported
+  as F701-F707 when selected; RT001 remains whenever that finding is
+  suppressed or not selected.
+- The lint cache file is now `correctness-v4.json`.
+
 ## 0.4.0a0 - Python 3.13 and 3.14 grammar, 2026-10-06
 
 - The Rust engine parses Python 3.13 and 3.14 natively: type parameter

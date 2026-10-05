@@ -2,6 +2,7 @@
 
 from functools import cached_property
 import ast
+import warnings
 
 from refactrail.facts import (
     FunctionFact, collect_function_facts_list, find_constant_candidates_dict,
@@ -121,6 +122,69 @@ class RuleContext:
         """
         return collect_function_facts_list(self.tree)
 
+    @cached_property
+    def bound_names_set(self) -> set[str]:
+        """Return every name bound anywhere in the file.
+
+        Args:
+            None: Uses the parsed tree.
+        Returns:
+            set[str]: Assigned, defined, imported and parameter names.
+        Warnings:
+            Computed once per file; used to tell rebound builtins.
+        """
+        from refactrail.rules.naming import collect_bound_names_set
+        return collect_bound_names_set(self.tree)
+
+    @cached_property
+    def tokens_list(self) -> list:
+        """Return the file's tokens.
+
+        Args:
+            None: Uses the decoded source.
+        Returns:
+            list: tokenize.TokenInfo items, or [] when tokenizing fails.
+        Warnings:
+            Computed once per file.
+        """
+        from refactrail.compat_pycodestyle import list_tokens_list
+        return list_tokens_list(self.source_info.text)
+
+    @cached_property
+    def lexical_report_dict(self) -> dict:
+        """Return the lexical scope report of the file.
+
+        Args:
+            None: Uses the decoded source and tree.
+        Returns:
+            dict: Reads with their resolutions, imports and scopes.
+        Warnings:
+            Computed once per file; may hold no reads when the file uses
+            constructs outside the supported scope model.
+        """
+        from refactrail.lexical import collect_lexical_dict
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return collect_lexical_dict(self.source_info.text,
+                                        self.source_info.path, self.tree,
+                                        resolve_limited_bool=True)
+
+    @cached_property
+    def read_resolutions_dict(self) -> dict[tuple[int, int], str]:
+        """Return each name read's resolution by line and column.
+
+        Args:
+            None: Uses lexical_report_dict.
+        Returns:
+            dict[tuple[int, int], str]: "local", "closure", "module",
+            "builtin_or_implicit", "unresolved" or "comprehension".
+        Warnings:
+            Empty when the lexical report is unavailable.
+        """
+        return {(read_dict["line"], read_dict["column"]):
+                read_dict["resolution"]
+                for read_dict in self.lexical_report_dict["reads"]}
+
     def is_enabled_bool(self, code_str: str) -> bool:
         """Tell whether a rule should run in this file.
 
@@ -149,10 +213,11 @@ class RuleContext:
         if not self.is_enabled_bool(code_str):
             return
         line_int, column_int = position_tuple
-        suppressed = self.source_info.noqa.get(line_int, frozenset())
-        if suppressed is None or any(code_str.startswith(prefix_str)
-                                     for prefix_str in suppressed):
-            return
+        for key_int in (0, line_int):
+            suppressed = self.source_info.noqa.get(key_int, frozenset())
+            if suppressed is None or any(code_str.startswith(prefix_str)
+                                         for prefix_str in suppressed):
+                return
         severity_str = (ERROR_SEVERITY_STR if code_str in ERROR_CODES_TUPLE
                         else WARNING_SEVERITY_STR)
         self.findings_list.append(Finding(

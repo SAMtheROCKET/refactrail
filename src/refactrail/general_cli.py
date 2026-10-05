@@ -7,7 +7,9 @@ from pathlib import Path
 import sys
 
 from refactrail.config import load_settings
-from refactrail.correctness_batch import check_correctness_paths_list
+from refactrail.correctness_batch import (
+    check_correctness_paths_list, is_native_selection_bool,
+)
 from refactrail.discovery import discover_python_files_list
 from refactrail.engine import ENGINES_TUPLE, resolve_engine_str
 from refactrail.fixing import verify_original_none
@@ -99,10 +101,17 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
     ignore_tuple = tuple(code_str.strip().upper() for code_str
                          in arguments.ignore.split(",") if code_str.strip())
     cache_path = None if arguments.no_cache else (
-        Path.cwd() / ".refactrail_cache" / "correctness-v3.json")
+        Path.cwd() / ".refactrail_cache" / "correctness-v4.json")
+    engine_str = resolve_engine_str(arguments.engine, "lint_files")
+    if engine_str == "rust" and not is_native_selection_bool(select_tuple):
+        if arguments.engine == "rust":
+            raise ValueError("The Rust engine checks RC codes only so far; "
+                             "use --engine python (or auto) for E and F "
+                             "codes")
+        engine_str = "python"
     findings_list = check_correctness_paths_list(
         files_list, select_tuple, ignore_tuple, arguments.jobs, cache_path,
-        resolve_engine_str(arguments.engine, "lint_files"))
+        engine_str)
     if arguments.output_format == "sarif":
         output_str = render_sarif_str(findings_list)
     elif arguments.output_format == "json":

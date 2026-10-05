@@ -1,5 +1,51 @@
 # RefacTrail rule specification
 
+## pycodestyle- and Pyflakes-compatible codes (R1a, unreleased)
+
+`lint --select E4,E7,F` (or any prefix) adds codes with the meaning and
+numbering of pycodestyle and Pyflakes, so existing `# noqa: E701` comments
+and configurations carry over. They are computed by RefacTrail itself from
+Python's tokenizer, syntax tree and compiler symbol tables; no other
+linter's code is used. Ruff 0.16.9 serves only as an external test oracle
+(`scripts/ruff_oracle.py`): on the 6,988-file corpus RefacTrail and Ruff
+report the same 6,009 findings (code, line and column), and 753 of 754 on
+the Python 3.12 standard library.
+
+| Codes | Meaning |
+| --- | --- |
+| E401, E402 | Several imports on one line; a module import after other code. Docstrings, dunder assignments, `if`/`try`/`with` blocks and `sys.path`, `os.environ`, `matplotlib.use` or `pytest.importorskip` setup may come first. |
+| E701, E702, E703 | Several statements on one line (colon or semicolon); a trailing semicolon. `def f(): ...` lines and `class C: ...` stubs are allowed. |
+| E711, E712 | `==`/`!=` with None, True or False (not between two constants). |
+| E713, E714 | `not x in y`, `not x is y`. |
+| E721 | `==`/`!=` where a side is `type(...)` or a builtin class (also exceptions); `.dtype` comparisons are exempt. |
+| E722 | Bare `except:` that does not re-raise. |
+| E731 | A lambda assigned to a name. |
+| E741, E742, E743 | The names `l`, `O`, `I` for variables, classes or functions. |
+| F404, F407 | Late or unknown `from __future__` import. |
+| F501-F509 | `%`-format problems: invalid string, mapping/sequence mismatch, unused or missing named arguments, mixed placeholders, count mismatch, `*` with a mapping, unsupported character. |
+| F521-F525 | `str.format()` problems: invalid string, unused named or positional arguments, missing arguments, mixed automatic and manual numbering. |
+| F541 | An f-string without placeholders. |
+| F601, F602 | A dict key (literal or variable) repeated. |
+| F621, F622 | Too many or two starred targets in an assignment. |
+| F631, F632, F633, F634 | Assert or if on a non-empty tuple; `is` with a literal; `print >>`. |
+| F701, F702, F704, F706, F707 | `break`/`continue` outside a loop, `yield`/`await`/`return` outside a function, bare `except:` before other handlers. |
+| F722 | A string annotation that is not a valid expression. |
+| F901 | `raise NotImplemented`. |
+
+The compiler rejects the F404/F407/F62x/F70x cases outright. When the
+matching F code is selected, linting continues with the syntax tree and
+reports them as findings; if that finding is suppressed or not selected,
+RT001 is still reported, so a file that does not compile is never clean.
+`# ruff: noqa` and `# flake8: noqa` (optionally with codes) exempt the
+whole file in both engines.
+
+Not yet: the scope-based Pyflakes codes (F401, F402, F403, F405, F406,
+F811, F821, F822, F823, F841, F842; planned as R1b) and E902. Until the
+Rust engine has these codes (R1c), `lint --engine auto` runs E and F
+selections with the Python engine and `--engine rust` refuses them.
+Files with PEP 695 type parameters fall back to file-wide builtin
+detection for E721.
+
 ## Scope and formatting expansion (0.3.0a0)
 
 RC201 reports a loaded name for which compiler lexical scope information

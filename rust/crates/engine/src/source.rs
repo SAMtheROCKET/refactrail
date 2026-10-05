@@ -13,6 +13,10 @@ static NOQA_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)#\s*noqa(?::\s*(?P<codes>[A-Za-z0-9]+(?:[\s,]+[A-Za-z0-9]+)*))?")
         .expect("valid noqa pattern")
 });
+static FILE_NOQA_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^#\s*(?:flake8|ruff)\s*:\s*noqa\b(?::\s*(?P<codes>[A-Za-z0-9]+(?:[\s,]+[A-Za-z0-9]+)*))?")
+        .expect("valid file noqa pattern")
+});
 static CODE_SPLIT_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"[\s,]+").expect("valid split pattern"));
 const UTF8_NAMES: [&str; 5] = ["utf-8", "utf8", "utf_8", "utf-8-sig", "utf8-sig"];
@@ -164,7 +168,43 @@ impl<'a> SourceFile<'a> {
     }
 }
 
-/// Map line numbers to suppressed codes (None = all codes).
+/// Split a noqa code list into upper-case codes.
+fn split_codes(codes: &str) -> Vec<String> {
+    CODE_SPLIT_PATTERN.split(codes).filter(|code| !code.is_empty()).map(str::to_uppercase).collect()
+}
+
+/// Merge a file-wide exemption into line 0: a blanket one wins, listed
+/// codes accumulate (the Python engine's record_file_noqa_none).
+fn record_file_noqa(noqa: &mut HashMap<usize, Suppression>, codes: Option<&str>) {
+    match (codes, noqa.get_mut(&0)) {
+        (None, _) => {
+            noqa.insert(0, None);
+        }
+        (Some(_), Some(None)) => {}
+        (Some(listed), Some(Some(existing))) => {
+            for code in split_codes(listed) {
+                if !existing.contains(&code) {
+                    existing.push(code);
+                }
+            }
+        }
+        (Some(listed), None) => {
+            noqa.insert(0, Some(split_codes(listed)));
+        }
+    }
+}
+
+/// Whether a code is suppressed on a line (or for the whole file).
+pub fn is_suppressed(noqa: &HashMap<usize, Suppression>, line: usize, code: &str) -> bool {
+    [0, line].iter().any(|key| match noqa.get(key) {
+        Some(None) => true,
+        Some(Some(codes)) => codes.iter().any(|prefix| code.starts_with(prefix.as_str())),
+        None => false,
+    })
+}
+
+/// Map line numbers to suppressed codes (None = all codes); line 0 holds
+/// file-wide exemptions ("# ruff: noqa", "# flake8: noqa").
 fn parse_noqa(text: &str, line_starts: &[usize], comments: &[(usize, usize)]) -> HashMap<usize, Suppression> {
     let mut noqa = HashMap::new();
     for &(start, end) in comments {
@@ -173,12 +213,13 @@ fn parse_noqa(text: &str, line_starts: &[usize], comments: &[(usize, usize)]) ->
         if !comment.as_bytes().windows(4).any(|window| window.eq_ignore_ascii_case(b"noqa")) {
             continue;
         }
+        if let Some(captures) = FILE_NOQA_PATTERN.captures(comment) {
+            record_file_noqa(&mut noqa, captures.name("codes").map(|codes| codes.as_str()));
+            continue;
+        }
         let Some(captures) = NOQA_PATTERN.captures(comment) else { continue; };
         let line = line_starts.partition_point(|position| *position <= start);
-        let codes = captures.name("codes").map(|codes| {
-            CODE_SPLIT_PATTERN.split(codes.as_str()).filter(|code| !code.is_empty())
-                .map(str::to_uppercase).collect()
-        });
+        let codes = captures.name("codes").map(|codes| split_codes(codes.as_str()));
         noqa.insert(line, codes);
     }
     noqa

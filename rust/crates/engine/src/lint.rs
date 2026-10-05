@@ -56,12 +56,8 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
         if !settings.is_enabled(code) {
             return;
         }
-        if let Some(suppressed) = source.noqa.get(&position.0) {
-            match suppressed {
-                None => return,
-                Some(codes) if codes.iter().any(|prefix| code.starts_with(prefix.as_str())) => return,
-                _ => {}
-            }
+        if crate::source::is_suppressed(&source.noqa, position.0, code) {
+            return;
         }
         findings.push((position.0, position.1, code, message));
     };
