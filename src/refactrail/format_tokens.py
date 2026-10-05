@@ -6,6 +6,10 @@ import ast
 import re
 import tokenize
 
+# f-strings and, from Python 3.14, t-strings: their lines keep exact spacing.
+FORMATTED_STRING_NODES_TUPLE = tuple(
+    getattr(ast, name_str) for name_str in ("JoinedStr", "TemplateStr")
+    if hasattr(ast, name_str))
 DIRECTIVE_PATTERN = re.compile(r"#\s*fmt:\s*(off|on|skip)\b")
 IGNORED_TYPES_TUPLE = (
     tokenize.INDENT, tokenize.DEDENT, tokenize.NL, tokenize.NEWLINE,
@@ -30,11 +34,6 @@ class TokenIndex:
     tokens_list: list[tokenize.TokenInfo]
     starts_list: list[tuple[int, int]]
     lines_list: list[str]
-
-# f-strings and, from Python 3.14, t-strings: their lines keep exact spacing.
-FORMATTED_STRING_NODES_TUPLE = tuple(
-    getattr(ast, name_str) for name_str in ("JoinedStr", "TemplateStr")
-    if hasattr(ast, name_str))
 
 
 def build_token_index(text_str: str) -> TokenIndex:

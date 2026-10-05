@@ -20,6 +20,11 @@ ARITHMETIC_TUPLE = ("+", "-", "*", "/", "//", "%", "@", "**", "|", "&", "^",
 OPERAND_KINDS_TUPLE = ("word", "string", "close")
 SKIPPED_TYPES_TUPLE = (tokenize.NL, tokenize.NEWLINE, tokenize.INDENT,
                        tokenize.DEDENT, tokenize.ENDMARKER)
+# f-string and (Python 3.14) t-string boundaries; -1 where not supported.
+STRING_START_TYPES_TUPLE = (getattr(tokenize, "FSTRING_START", -1),
+                            getattr(tokenize, "TSTRING_START", -1))
+STRING_END_TYPES_TUPLE = (getattr(tokenize, "FSTRING_END", -1),
+                          getattr(tokenize, "TSTRING_END", -1))
 CONTINUATION_INDENT_STR = "    "
 
 
@@ -42,12 +47,6 @@ class Atom:
     space: bool
     kind: str
     depth: int
-
-# f-string and (Python 3.14) t-string boundaries; -1 where not supported.
-STRING_START_TYPES_TUPLE = (getattr(tokenize, "FSTRING_START", -1),
-                            getattr(tokenize, "TSTRING_START", -1))
-STRING_END_TYPES_TUPLE = (getattr(tokenize, "FSTRING_END", -1),
-                          getattr(tokenize, "TSTRING_END", -1))
 
 
 def classify_atom_str(token_info: tokenize.TokenInfo) -> str:
