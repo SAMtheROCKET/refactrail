@@ -1,0 +1,74 @@
+name: Install check
+# Installs the published packages exactly as a user would (a fresh
+# environment, one pip command) and checks that the right Rust engine or
+# its pure-Python fallback was chosen and that both tools work.
+on:
+  workflow_dispatch:
+    inputs:
+      index:
+        description: Package index
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+      version:
+        description: RefacTrail version
+        default: 0.3.1a0
+permissions:
+  contents: read
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.12', native: true}
+          - {os: ubuntu-latest, python: '3.14', native: true}
+          - {os: ubuntu-24.04-arm, python: '3.12', native: true}
+          - {os: windows-latest, python: '3.12', native: true}
+          - {os: windows-latest, python: '3.14', native: true}
+          - {os: windows-11-arm, python: '3.12', native: false}
+          - {os: macos-latest, python: '3.12', native: true}
+          - {os: macos-15-intel, python: '3.13', native: true}
+          - {os: ubuntu-latest, python: '3.14t', native: false}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install with one command
+        shell: bash
+        run: |
+          python -m venv fresh
+          if [ -x fresh/bin/python ]; then py=fresh/bin/python; else py=fresh/Scripts/python.exe; fi
+          echo "PY=$py" >> "$GITHUB_ENV"
+          if [ "${{ inputs.index }}" = testpypi ]; then
+            # Dependencies such as FuncLoom are on TestPyPI as well; nothing
+            # else is needed from PyPI.
+            "$py" -m pip install --index-url https://test.pypi.org/simple/ "refactrail==${{ inputs.version }}"
+          else
+            "$py" -m pip install "refactrail==${{ inputs.version }}"
+          fi
+          "$py" -m pip check
+          "$py" -m pip list
+      - name: The right engine was installed
+        shell: bash
+        run: |
+          "$PY" - <<'EOF'
+          import refactrail_core
+          native = hasattr(refactrail_core, "check_files")
+          print("native Rust engine:", native)
+          assert native == ${{ matrix.native && 'True' || 'False' }}
+          EOF
+      - name: Both tools work
+        shell: bash
+        run: |
+          printf 'def f(items=[]):\n    if items == None:\n        return 1\n' > sample.py
+          "$PY" -m funcloom --version
+          "$PY" -m funcloom | grep -q "funcloom check"
+          "$PY" -m refactrail --version
+          "$PY" -m refactrail | grep -q "refactrail lint"
+          "$PY" -m refactrail lint sample.py --output-format json > lint.json || [ $? -eq 1 ]
+          cat lint.json
+          "$PY" -c "import json; codes = {row['code'] for row in json.load(open('lint.json'))}; print(codes); assert codes"
+          "$PY" -m refactrail format sample.py --diff > /dev/null || true
+          "$PY" -m funcloom check sample.py --format json > /dev/null || [ $? -eq 1 ]
