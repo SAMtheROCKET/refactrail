@@ -52,15 +52,21 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
     };
     let source = SourceFile::new(text, &comments);
     let mut findings: Vec<(usize, usize, &'static str, String)> = Vec::new();
-    let mut report = |code: &'static str, position: (usize, usize), message: String| {
+    let mut report_with_parent = |code: &'static str, position: (usize, usize), message: String, parent: usize| {
         if !settings.is_enabled(code) {
             return;
         }
-        if crate::source::is_suppressed(&source.noqa, position.0, code) {
+        if crate::source::is_suppressed(&source.noqa, position.0, code)
+            || (parent > 0 && crate::source::is_suppressed(&source.noqa, parent, code))
+        {
             return;
         }
         findings.push((position.0, position.1, code, message));
     };
+    for (code, position, message, parent) in compat_findings(text, &tree, &source, &comments, &symbols, settings) {
+        report_with_parent(code, position, message, parent);
+    }
+    let mut report = |code: &'static str, position: (usize, usize), message: String| report_with_parent(code, position, message, 0);
     for (code, loc, message) in crate::correctness::check_module(&tree.body) {
         report(code, source.position(loc), message);
     }
@@ -93,6 +99,41 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
     findings.sort();
     findings.dedup();
     LintOutcome::Rows(findings.into_iter().map(|(line, column, code, message)| row(path, line, column, code, message)).collect())
+}
+
+/// The pycodestyle- and Pyflakes-compatible findings that are selected.
+fn compat_findings(
+    text: &str,
+    tree: &refactrail_parser::ast::Module,
+    source: &SourceFile,
+    comments: &[(usize, usize)],
+    symbols: &refactrail_parser::symtable::SymbolTable,
+    settings: &Settings,
+) -> Vec<crate::compat_pycodestyle::CompatFinding> {
+    use crate::walk::Visitor;
+    let mut out = Vec::new();
+    let any_enabled = |codes: &[&str]| codes.iter().any(|code| settings.is_enabled(code));
+    if any_enabled(&["E701", "E702", "E703"]) {
+        if let Ok(tokens) = refactrail_lexer::tokenize(text) {
+            crate::compat_pycodestyle::check_statement_tokens(&tokens, text, tree, source, &mut out);
+        }
+    }
+    if settings.is_enabled("E402") {
+        crate::compat_pycodestyle::check_import_position(tree, source, &mut out);
+    }
+    if any_enabled(&["E401", "E711", "E712", "E713", "E714", "E721", "E722", "E731", "E741", "E742", "E743"]) {
+        let lexical = if settings.is_enabled("E721") {
+            lexical::analyze_with(tree, source, comments, symbols, true)
+        } else {
+            lexical::LexicalReport { limitations: Vec::new(), reads: Vec::new(), imports: Vec::new(), scopes: Vec::new(), diagnostics_supported: false }
+        };
+        let mut checks = crate::compat_pycodestyle::NodeChecks::new(source, &lexical, tree);
+        for statement in &tree.body {
+            checks.visit_stmt(statement);
+        }
+        out.extend(checks.out);
+    }
+    out
 }
 
 /// Python's str(SyntaxError): "msg (file name, line N)", where the file

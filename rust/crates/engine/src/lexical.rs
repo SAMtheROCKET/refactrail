@@ -5,7 +5,7 @@
 
 use crate::source::SourceFile;
 use crate::walk::{walk_expr, walk_stmt, Expr, ExprContext, ExprKind, Module, Stmt, StmtKind, Visitor};
-use refactrail_parser::ast::{Alias, Arguments};
+use refactrail_parser::ast::{Alias, Arguments, TypeParam, TypeParamKind};
 use refactrail_parser::fast_hash::{FastMap, FastSet};
 use refactrail_parser::symtable::{
     BlockType, SymbolTable, CELL, DEF_BOUND, DEF_IMPORT, DEF_LOCAL, DEF_PARAM, FREE, LOCAL, SCOPE_MASK, SCOPE_OFFSET, USE,
@@ -172,7 +172,10 @@ impl<'a> Collector<'a, '_> {
         let parent = self.current();
         let found = self.symbols.tables[parent].children.iter().copied().find(|&child| {
             let table = &self.symbols.tables[child];
-            table.name.as_str() == name && table.lineno == line && !self.used_tables.contains(&child)
+            table.name.as_str() == name
+                && table.lineno == line
+                && !self.used_tables.contains(&child)
+                && table.block != BlockType::TypeParam
         });
         let Some(child) = found else {
             self.error = Some(format!("Unresolved compiler scope at line {line}"));
@@ -186,6 +189,43 @@ impl<'a> Collector<'a, '_> {
         self.stack.pop();
     }
 
+    /// enter_type_params_bool: enter a generic definition's type
+    /// parameter scope (the caller pops it) and visit bounds and defaults
+    /// in their own scopes. False without type parameters.
+    fn enter_type_params(&mut self, line: u32, name: &str, type_params: &'a [TypeParam]) -> bool {
+        if type_params.is_empty() || self.error.is_some() {
+            return false;
+        }
+        let parent = self.current();
+        let found = self.symbols.tables[parent].children.iter().copied().find(|&child| {
+            let table = &self.symbols.tables[child];
+            table.name.as_str() == name
+                && table.lineno == line
+                && !self.used_tables.contains(&child)
+                && table.block == BlockType::TypeParam
+        });
+        let Some(child) = found else {
+            self.error = Some(format!("Unresolved type parameter scope at line {line}"));
+            return false;
+        };
+        self.used_tables.insert(child);
+        self.parents.insert(child, parent);
+        self.order.push(child);
+        self.stack.push(child);
+        for parameter in type_params {
+            let (parameter_name, bound, default) = match &parameter.kind {
+                TypeParamKind::TypeVar { name, bound, default_value } => (name, bound.as_deref(), default_value.as_deref()),
+                TypeParamKind::ParamSpec { name, default_value } | TypeParamKind::TypeVarTuple { name, default_value } => {
+                    (name, None, default_value.as_deref())
+                }
+            };
+            for expression in [bound, default].into_iter().flatten() {
+                self.collect_scope(parameter.loc.line, parameter_name, |collector| collector.visit_expr(expression));
+            }
+        }
+        true
+    }
+
     fn annotation_expr(&mut self, node: Option<&'a Expr>) {
         if let Some(node) = node {
             let previous = self.annotation;
@@ -195,7 +235,17 @@ impl<'a> Collector<'a, '_> {
         }
     }
 
-    fn function(&mut self, line: u32, name: &str, decorators: &'a [Expr], args: &'a Arguments, returns: Option<&'a Expr>, body: FunctionBody<'a>) {
+    #[allow(clippy::too_many_arguments)]
+    fn function(
+        &mut self,
+        line: u32,
+        name: &str,
+        decorators: &'a [Expr],
+        args: &'a Arguments,
+        returns: Option<&'a Expr>,
+        type_params: &'a [TypeParam],
+        body: FunctionBody<'a>,
+    ) {
         for decorator in decorators {
             self.visit_expr(decorator);
         }
@@ -205,6 +255,7 @@ impl<'a> Collector<'a, '_> {
         for default in args.kw_defaults.iter().flatten() {
             self.visit_expr(default);
         }
+        let is_generic = self.enter_type_params(line, name, type_params);
         let parameters = args.posonlyargs.iter().chain(&args.args).chain(&args.kwonlyargs).chain(args.vararg.as_ref()).chain(args.kwarg.as_ref());
         for parameter in parameters {
             self.annotation_expr(parameter.annotation.as_deref());
@@ -218,6 +269,9 @@ impl<'a> Collector<'a, '_> {
             }
             FunctionBody::Expression(expression) => collector.visit_expr(expression),
         });
+        if is_generic {
+            self.stack.pop();
+        }
     }
 
     fn comprehension(&mut self, node: &'a Expr) {
@@ -291,12 +345,16 @@ impl<'a> Visitor<'a> for Collector<'a, '_> {
             return;
         }
         match &node.kind {
-            StmtKind::FunctionDef { name, args, body, decorator_list, returns, .. }
-            | StmtKind::AsyncFunctionDef { name, args, body, decorator_list, returns, .. } => {
-                self.function(node.loc.line, name, decorator_list, args, returns.as_deref(), FunctionBody::Statements(body));
+            StmtKind::FunctionDef { name, args, body, decorator_list, returns, type_params, .. }
+            | StmtKind::AsyncFunctionDef { name, args, body, decorator_list, returns, type_params, .. } => {
+                self.function(node.loc.line, name, decorator_list, args, returns.as_deref(), type_params, FunctionBody::Statements(body));
             }
-            StmtKind::ClassDef { name, bases, keywords, body, decorator_list, .. } => {
-                for expression in decorator_list.iter().chain(bases).chain(keywords.iter().map(|keyword| &*keyword.value)) {
+            StmtKind::ClassDef { name, bases, keywords, body, decorator_list, type_params } => {
+                for expression in decorator_list {
+                    self.visit_expr(expression);
+                }
+                let is_generic = self.enter_type_params(node.loc.line, name, type_params);
+                for expression in bases.iter().chain(keywords.iter().map(|keyword| &*keyword.value)) {
                     self.visit_expr(expression);
                 }
                 let previous = self.class_name;
@@ -307,6 +365,20 @@ impl<'a> Visitor<'a> for Collector<'a, '_> {
                     }
                 });
                 self.class_name = previous;
+                if is_generic {
+                    self.stack.pop();
+                }
+            }
+            StmtKind::TypeAlias { name, type_params, value } => {
+                let alias_name: &str = match &name.kind {
+                    ExprKind::Name { id, .. } => id,
+                    _ => "",
+                };
+                let is_generic = self.enter_type_params(node.loc.line, alias_name, type_params);
+                self.collect_scope(node.loc.line, alias_name, |collector| collector.visit_expr(value));
+                if is_generic {
+                    self.stack.pop();
+                }
             }
             StmtKind::AnnAssign { target, annotation, value, .. } => {
                 self.annotation_expr(Some(annotation));
@@ -344,7 +416,7 @@ impl<'a> Visitor<'a> for Collector<'a, '_> {
                 }
             }
             ExprKind::Lambda { args, body } => {
-                self.function(node.loc.line, "lambda", &[], args, None, FunctionBody::Expression(body));
+                self.function(node.loc.line, "lambda", &[], args, None, &[], FunctionBody::Expression(body));
             }
             ExprKind::ListComp { .. } | ExprKind::SetComp { .. } | ExprKind::DictComp { .. } | ExprKind::GeneratorExp { .. } => {
                 self.comprehension(node);
@@ -413,7 +485,7 @@ fn resolve(collector: &Collector, table: usize, name: &str) -> (&'static str, Op
             let mut parent = collector.parents.get(&table).copied();
             while let Some(candidate) = parent {
                 let candidate_table = &symbols.tables[candidate];
-                if candidate_table.block == BlockType::Function
+                if matches!(candidate_table.block, BlockType::Function | BlockType::TypeParam)
                     && candidate_table.contains(name)
                     && symbol_is_local(candidate_table, name)
                 {
@@ -468,6 +540,19 @@ fn mentioned_words<'a>(module: &'a Module, source: &'a SourceFile, comments: &[(
 
 /// analyze_lexical_dict for a compiled module (collect_lexical_dict).
 pub fn analyze(module: &Module, source: &SourceFile, comments: &[(usize, usize)], symbols: &SymbolTable) -> LexicalReport {
+    analyze_with(module, source, comments, symbols, false)
+}
+
+/// collect_lexical_dict with resolve_limited_bool: also resolve reads in
+/// files with wildcard imports, dynamic namespaces or type parameters
+/// (for the E and F rules), keeping diagnostics_supported false there.
+pub fn analyze_with(
+    module: &Module,
+    source: &SourceFile,
+    comments: &[(usize, usize)],
+    symbols: &SymbolTable,
+    resolve_limited: bool,
+) -> LexicalReport {
     let mut report = LexicalReport {
         limitations: vec![FLOW_LIMIT.to_string()],
         reads: Vec::new(),
@@ -476,9 +561,12 @@ pub fn analyze(module: &Module, source: &SourceFile, comments: &[(usize, usize)]
         diagnostics_supported: false,
     };
     let limits = scope_limits(module);
-    if !limits.is_empty() {
+    let is_limited = !limits.is_empty();
+    if is_limited {
         report.limitations.extend(limits);
-        return report;
+        if !resolve_limited {
+            return report;
+        }
     }
     let mut collector = Collector {
         symbols,
@@ -547,6 +635,6 @@ pub fn analyze(module: &Module, source: &SourceFile, comments: &[(usize, usize)]
             exempt: export || mentioned.contains(name) || flags & DEF_LOCAL != 0,
         });
     }
-    report.diagnostics_supported = true;
+    report.diagnostics_supported = !is_limited;
     report
 }

@@ -196,7 +196,8 @@ class SuppressionAndEngineTests(unittest.TestCase):
         self.assertTrue(is_native_selection_bool(("RC",)))
         self.assertTrue(is_native_selection_bool(("RC1", "RC201")))
         self.assertFalse(is_native_selection_bool(("RC", "F")))
-        self.assertFalse(is_native_selection_bool(("E4",)))
+        self.assertTrue(is_native_selection_bool(("E4", "E7")))
+        self.assertFalse(is_native_selection_bool(("E", "F541")))
 
 
 if __name__ == "__main__":

@@ -104,12 +104,12 @@ def is_native_selection_bool(select_tuple: tuple[str, ...]) -> bool:
     Args:
         select_tuple (tuple[str, ...]): Selected code prefixes.
     Returns:
-        bool: True when every prefix selects RC codes only.
+        bool: True when every prefix selects RC or pycodestyle (E) codes.
     Warnings:
-        The pycodestyle (E) and Pyflakes (F) compatible codes run in the
-        Python engine until the Rust engine has them too.
+        The Pyflakes-compatible (F) codes run in the Python engine until
+        the Rust engine has them too.
     """
-    return bool(select_tuple) and all(prefix_str.startswith("RC")
+    return bool(select_tuple) and all(prefix_str.startswith(("RC", "E"))
                                       for prefix_str in select_tuple)
 
 
