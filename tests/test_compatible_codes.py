@@ -192,12 +192,15 @@ class SuppressionAndEngineTests(unittest.TestCase):
             import json
         """, "E4"), [(4, 1, "E402")])
 
-    def test_rust_engine_only_for_rc_selections(self):
+    def test_rust_engine_selections(self):
         self.assertTrue(is_native_selection_bool(("RC",)))
         self.assertTrue(is_native_selection_bool(("RC1", "RC201")))
-        self.assertFalse(is_native_selection_bool(("RC", "F")))
         self.assertTrue(is_native_selection_bool(("E4", "E7")))
-        self.assertFalse(is_native_selection_bool(("E", "F541")))
+        self.assertTrue(is_native_selection_bool(("E", "F5", "F541")))
+        self.assertTrue(is_native_selection_bool(("F404", "F70")))
+        self.assertFalse(is_native_selection_bool(("RC", "F")))
+        self.assertFalse(is_native_selection_bool(("F4",)))
+        self.assertFalse(is_native_selection_bool(("F841",)))
 
 
 if __name__ == "__main__":
