@@ -10,6 +10,10 @@
   F811, F821, F822, F823, F841, F842) with a flow-ordered binding model.
   With them, Ruff's whole default rule set agrees on 19,827 of 19,830
   corpus findings and 2,050 of 2,054 standard-library findings.
+- R1c: the Rust engine implements all of these codes with findings
+  identical to the Python engine (2,066 standard-library and 21,552
+  corpus findings); `lint --engine rust` accepts any RC, E or F
+  selection.
 - Compiler scope analysis understands PEP 695 type parameter scopes.
 - `# noqa` on the first line of a multi-line import or `__all__`
   statement applies to the names inside it.

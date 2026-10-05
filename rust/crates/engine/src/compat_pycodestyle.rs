@@ -274,13 +274,18 @@ impl<'s, 'a> NodeChecks<'s, 'a> {
         }
     }
 
-    /// find_identifier_tuple: the first whole-word occurrence of a name
-    /// at or after a node's start, within the node's lines.
     fn identifier(&self, loc: refactrail_parser::Loc, name: &str) -> (usize, usize) {
-        let (line, column) = self.source.position(loc);
+        identifier_position(self.source, loc, name)
+    }
+}
+
+/// find_identifier_tuple: the first whole-word occurrence of a name at or
+/// after a node's start, within the node's lines.
+pub fn identifier_position(source: &SourceFile, loc: refactrail_parser::Loc, name: &str) -> (usize, usize) {
+        let (line, column) = source.position(loc);
         let end_line = (loc.end_line as usize).max(line);
         for offset in 0..=(end_line - line) {
-            let Some(text) = self.source.lines.get(line - 1 + offset) else { break };
+            let Some(text) = source.lines.get(line - 1 + offset) else { break };
             let characters: Vec<char> = text.chars().collect();
             let name_characters: Vec<char> = name.chars().collect();
             let start = if offset == 0 { column - 1 } else { 0 };
@@ -299,7 +304,6 @@ impl<'s, 'a> NodeChecks<'s, 'a> {
         }
         (line, column)
     }
-}
 
 /// is_dtype_expression_bool.
 fn is_dtype_expression(expression: &Expr) -> bool {

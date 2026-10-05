@@ -63,10 +63,14 @@ redefined after `if`/`else` definitions, one `except ... as` name in a
 handler that only re-raises, and three F401 cases involving submodule
 imports. E902 (unreadable file) is reported as RT002 instead.
 
-Until the Rust engine has these codes (R1c), `lint --engine auto` runs E
-and F selections with the Python engine and `--engine rust` refuses them.
-The Python engine checks the standard library's 2,050 findings in about
-2.8 s; Ruff takes 0.08 s; the Rust port is meant to close that gap.
+Both engines implement every code above (R1c): the Rust engine's
+findings are identical to the Python engine's on the Python 3.12
+standard library (2,066 findings) and the 6,988-file corpus (21,552
+findings), as well as on edge-case smoke files. Files the compiler
+rejects are linted by the Python engine. Timing on a 24-thread machine,
+the standalone `refactrail-native lint --jobs 0 --select E4,E7,F` takes
+0.12 s on the standard library and 0.71 s on the corpus; Ruff takes
+0.04 s and 0.36 s. The Python engine takes 2.5 s and 22.5 s.
 
 ## Scope and formatting expansion (0.3.0a0)
 

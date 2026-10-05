@@ -5,7 +5,6 @@ from hashlib import sha256
 from pathlib import Path
 import os
 
-from refactrail.compat_scope_checker import SCOPE_CODES_TUPLE
 from refactrail.correctness import check_correctness_list
 from refactrail.engine import (
     compute_cache_key_str, load_cache_dict, load_rust_core, save_cache_none,
@@ -105,15 +104,13 @@ def is_native_selection_bool(select_tuple: tuple[str, ...]) -> bool:
     Args:
         select_tuple (tuple[str, ...]): Selected code prefixes.
     Returns:
-        bool: True when no prefix selects a scope-based F code.
+        bool: True when every prefix selects RC, E or F codes, which both
+        engines implement.
     Warnings:
-        The scope-based Pyflakes-compatible codes (F401 ... F842) run in
-        the Python engine until the Rust engine has them too.
+        Files the compiler rejects are linted by the Python engine.
     """
     return bool(select_tuple) and all(
-        prefix_str.startswith(("RC", "E", "F")) and not any(
-            code_str.startswith(prefix_str) for code_str in SCOPE_CODES_TUPLE)
-        for prefix_str in select_tuple)
+        prefix_str.startswith(("RC", "E", "F")) for prefix_str in select_tuple)
 
 
 def run_rust_snapshots_list(snapshots_list: list[tuple],

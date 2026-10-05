@@ -63,7 +63,7 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
         }
         findings.push((position.0, position.1, code, message));
     };
-    for (code, position, message, parent) in compat_findings(text, &tree, &source, &comments, &symbols, settings) {
+    for (code, position, message, parent) in compat_findings(path, text, &tree, &source, &comments, &symbols, settings) {
         report_with_parent(code, position, message, parent);
     }
     let mut report = |code: &'static str, position: (usize, usize), message: String| report_with_parent(code, position, message, 0);
@@ -103,6 +103,7 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
 
 /// The pycodestyle- and Pyflakes-compatible findings that are selected.
 fn compat_findings(
+    path: &str,
     text: &str,
     tree: &refactrail_parser::ast::Module,
     source: &SourceFile,
@@ -123,6 +124,9 @@ fn compat_findings(
         "F631", "F632", "F633", "F634", "F722", "F901",
     ]) {
         out.extend(crate::compat_pyflakes::check_module(tree, source, &tokens));
+    }
+    if any_enabled(&crate::compat_scope::SCOPE_CODES) {
+        out.extend(crate::compat_scope::check_module(tree, source, path));
     }
     if settings.is_enabled("E402") {
         crate::compat_pycodestyle::check_import_position(tree, source, &mut out);

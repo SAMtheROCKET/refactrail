@@ -105,9 +105,8 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
     engine_str = resolve_engine_str(arguments.engine, "lint_files")
     if engine_str == "rust" and not is_native_selection_bool(select_tuple):
         if arguments.engine == "rust":
-            raise ValueError("The Rust engine checks RC and E codes only so "
-                             "far; use --engine python (or auto) for F "
-                             "codes")
+            raise ValueError("lint checks RC, E and F codes; the Rust "
+                             "engine has no other selections")
         engine_str = "python"
     findings_list = check_correctness_paths_list(
         files_list, select_tuple, ignore_tuple, arguments.jobs, cache_path,

@@ -545,7 +545,9 @@ class ScopeChecker:
                 and call.func.value.id == "__all__" and call.args):
             argument = call.args[0]
             if call.func.attr == "append":
-                argument = ast.List([argument], ast.Load())
+                argument = ast.List([argument], ast.Load(),
+                                    lineno=argument.lineno,
+                                    col_offset=argument.col_offset)
             if call.func.attr in ("append", "extend") and (
                     not self.branch_tuple):
                 self.collect_exports_none([call.func.value], argument)

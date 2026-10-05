@@ -5,6 +5,7 @@
 mod bindings_count;
 mod compat_pycodestyle;
 mod compat_pyflakes;
+mod compat_scope;
 mod correctness;
 pub mod lexical;
 pub mod lint;
