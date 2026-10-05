@@ -31,6 +31,11 @@ class TokenIndex:
     starts_list: list[tuple[int, int]]
     lines_list: list[str]
 
+# f-strings and, from Python 3.14, t-strings: their lines keep exact spacing.
+FORMATTED_STRING_NODES_TUPLE = tuple(
+    getattr(ast, name_str) for name_str in ("JoinedStr", "TemplateStr")
+    if hasattr(ast, name_str))
+
 
 def build_token_index(text_str: str) -> TokenIndex:
     """Tokenize a normalized source snapshot without executing it.
@@ -76,7 +81,7 @@ def collect_protected_lines_set(
             protected_set.update(range(token_info.start[0],
                                        token_info.end[0] + 1))
     for node in ast.walk(tree_node) if fstrings_bool else ():
-        if isinstance(node, ast.JoinedStr):
+        if isinstance(node, FORMATTED_STRING_NODES_TUPLE):
             protected_set.update(range(node.lineno, node.end_lineno + 1))
     return protected_set | collect_directive_lines_set(index_info,
                                                        directives_dict)

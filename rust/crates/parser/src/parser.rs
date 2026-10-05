@@ -4,13 +4,13 @@
 
 use std::cell::Cell;
 
-use refactrail_lexer::{Kind, LexError, Token, TokenSink};
+use refactrail_lexer::{Kind, LexError, Token, TokenSink, Version};
 
 use crate::ast::{
     Alias, ExceptHandler, Expr, ExprContext, ExprKind, Id, Module, Operator, Stmt, StmtKind, TypeParam, TypeParamKind,
     WithItem,
 };
-use crate::expr::name_node;
+use crate::expr::{expr, name_node};
 use crate::node::{Constant, Loc};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -358,6 +358,8 @@ const TYPE: u8 = 87;
 
 pub(crate) struct Parser<'a> {
     pub src: &'a str,
+    /// The Python version whose grammar is parsed.
+    pub version: Version,
     /// Byte span of each token.
     spans: Vec<TokenSpan>,
     /// (token index, text) of the few tokens whose text is not their
@@ -481,6 +483,11 @@ impl TokenSink for Prepare<'_> {
 impl<'a> Parser<'a> {
     /// Tokenize `src` (in the parser tokenizer's mode) and prepare to parse.
     pub fn new(src: &'a str) -> Parser<'a> {
+        Self::new_version(src, Version::default())
+    }
+
+    /// `new` for a given Python version's grammar.
+    pub fn new_version(src: &'a str, version: Version) -> Parser<'a> {
         let starts = line_starts(src);
         // CPython's parser tokenizer puts end-of-file tokens on the last
         // physical line.
@@ -519,7 +526,7 @@ impl<'a> Parser<'a> {
             level: 0,
             comment_start: None,
         };
-        let (mut prepare, lex_error) = refactrail_lexer::tokenize_into(src, true, prepare);
+        let (mut prepare, lex_error) = refactrail_lexer::tokenize_into_version(src, true, version, prepare);
         if let Some(error) = &lex_error {
             prepare.lex_error = true;
             prepare.push(Token {
@@ -534,6 +541,7 @@ impl<'a> Parser<'a> {
         let Prepare { kinds, locs, codes, levels, spans, texts, comments, .. } = prepare;
         Parser {
             src,
+            version,
             spans,
             texts,
             comments,
@@ -991,7 +999,7 @@ impl<'a> Parser<'a> {
         let start = self.bump();
         let (name, name_index) = self.expect_name()?;
         let name = Box::new(name_node(name, ExprContext::Store, self.loc(name_index)));
-        let type_params = self.type_params()?;
+        let type_params = self.optional_type_params()?;
         self.expect_op("=")?;
         let value = Box::new(self.expression()?);
         Ok(stmt(StmtKind::TypeAlias { name, type_params, value }, self.span(start)))
@@ -1259,9 +1267,22 @@ impl<'a> Parser<'a> {
             }
             let (mut type_, mut name) = (None, None);
             if !self.at_op(":") {
-                type_ = Some(Box::new(self.expression()?));
-                if self.eat_kw("as").is_some() {
-                    name = Some(self.expect_name()?.0);
+                let first_start = self.pos;
+                let first = self.expression()?;
+                if self.at_op(",") {
+                    if self.version >= Version::Py314 && !self.except_types_need_as() {
+                        type_ = Some(Box::new(self.except_types_tuple(first_start, first)?));
+                    } else {
+                        return Err(self.multiple_except_types_error(&first));
+                    }
+                } else {
+                    type_ = Some(Box::new(first));
+                    if let Some(keyword) = self.eat_kw("as") {
+                        if self.version >= Version::Py314 && !(self.kind() == Kind::Name && self.kind_at(self.pos + 1) == Kind::Op && self.text_at(self.pos + 1) == ":") {
+                            return Err(self.except_target_error(keyword, star));
+                        }
+                        name = Some(self.expect_name()?.0);
+                    }
                 }
             }
             self.expect_colon(false)?;
@@ -1288,6 +1309,121 @@ impl<'a> Parser<'a> {
         Ok(stmt(kind, self.loc(start).to(end)))
     }
 
+    /// Whether `, more ... as NAME :` follows an except type: 3.14 accepts
+    /// unparenthesized types only without `as`.
+    fn except_types_need_as(&self) -> bool {
+        let mut index = self.pos;
+        let mut level = 0u32;
+        while index < self.kinds.len() {
+            match self.kinds[index] {
+                Kind::Newline | Kind::EndMarker => return false,
+                Kind::Op => match self.text_at(index) {
+                    "(" | "[" | "{" => level += 1,
+                    ")" | "]" | "}" => level = level.saturating_sub(1),
+                    ":" if level == 0 => return false,
+                    _ => {}
+                },
+                Kind::Name if level == 0 && self.text_at(index) == "as" => return true,
+                _ => {}
+            }
+            index += 1;
+        }
+        false
+    }
+
+    /// Python 3.14's `expressions` after an except: a Tuple of the types.
+    fn except_types_tuple(&mut self, start: usize, first: Expr) -> PResult<Expr> {
+        let mut elts = vec![first];
+        while self.eat_op(",").is_some() {
+            if self.at_op(":") {
+                break;
+            }
+            elts.push(self.expression()?);
+        }
+        Ok(expr(ExprKind::Tuple { elts, ctx: ExprContext::Load }, self.span(start)))
+    }
+
+    /// CPython's invalid_except_stmt: `except A, B [as NAME]:` before 3.14,
+    /// and `except A, B as NAME:` in 3.14, report unparenthesized types.
+    fn multiple_except_types_error(&mut self, first: &Expr) -> ParseError {
+        let generic = self.error("invalid syntax");
+        if !self.invalid_mode {
+            return generic;
+        }
+        let saved = self.pos;
+        let mut matched = self.eat_op(",").is_some() && self.expressions_for_error();
+        let with_as = matched && self.eat_kw("as").is_some();
+        if with_as {
+            matched = self.kind() == Kind::Name && { self.bump(); true };
+        } else if self.version >= Version::Py314 {
+            matched = false;
+        }
+        matched = matched && self.at_op(":");
+        self.pos = saved;
+        if !matched {
+            return generic;
+        }
+        let message = if self.version >= Version::Py314 {
+            "multiple exception types must be parenthesized when using 'as'"
+        } else {
+            "multiple exception types must be parenthesized"
+        };
+        self.specific(first.loc, message)
+    }
+
+    /// `expressions` for an error check: whether one or more expressions
+    /// (with an optional trailing comma) parse here.
+    fn expressions_for_error(&mut self) -> bool {
+        if self.expression().is_err() {
+            return false;
+        }
+        while self.at_op(",") {
+            self.bump();
+            if self.at_op(":") || self.at_kw("as") {
+                break;
+            }
+            if self.expression().is_err() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Python 3.14's `except E as <expression>:` with a target that is not a
+    /// plain name.
+    fn except_target_error(&mut self, keyword: usize, star: bool) -> ParseError {
+        let generic = self.error("invalid syntax");
+        if !self.invalid_mode {
+            return generic;
+        }
+        let saved = self.pos;
+        let target = self.expression();
+        let matched = target.is_ok() && self.at_op(":");
+        self.pos = saved;
+        let _ = keyword;
+        match target {
+            Ok(target) if matched => {
+                let what = if star { "except*" } else { "except" };
+                self.specific(target.loc, &format!("cannot use {what} statement with {}", expr_name(&target)))
+            }
+            _ => generic,
+        }
+    }
+
+    /// CPython's optional `[type_params]`: a generic failure backtracks to
+    /// no type parameters (the following token then reports the error, as
+    /// 3.12's forced `(` does); specific errors are reported as they are.
+    pub fn optional_type_params(&mut self) -> PResult<Vec<TypeParam>> {
+        let start = self.pos;
+        match self.type_params() {
+            Err(error) if error.message == "invalid syntax" => {
+                self.pos = start;
+                Ok(Vec::new())
+            }
+            result => result,
+        }
+    }
+
     pub fn type_params(&mut self) -> PResult<Vec<TypeParam>> {
         let mut params = Vec::new();
         if self.eat_op("[").is_none() {
@@ -1296,13 +1432,15 @@ impl<'a> Parser<'a> {
         loop {
             let start = self.pos;
             let kind = if self.eat_op("*").is_some() {
-                TypeParamKind::TypeVarTuple { name: self.expect_name()?.0 }
+                let name = self.expect_name()?.0;
+                TypeParamKind::TypeVarTuple { name, default_value: self.type_param_default(true)? }
             } else if self.eat_op("**").is_some() {
-                TypeParamKind::ParamSpec { name: self.expect_name()?.0 }
+                let name = self.expect_name()?.0;
+                TypeParamKind::ParamSpec { name, default_value: self.type_param_default(false)? }
             } else {
                 let name = self.expect_name()?.0;
                 let bound = if self.eat_op(":").is_some() { Some(Box::new(self.expression()?)) } else { None };
-                TypeParamKind::TypeVar { name, bound }
+                TypeParamKind::TypeVar { name, bound, default_value: self.type_param_default(false)? }
             };
             params.push(TypeParam { kind, loc: self.span(start) });
             if self.eat_op(",").is_none() || self.at_op("]") {
@@ -1313,10 +1451,20 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
+    /// A type parameter default (`= expression`, `= *expression` for a
+    /// TypeVarTuple), part of the grammar since Python 3.13.
+    fn type_param_default(&mut self, starred: bool) -> PResult<Option<Box<Expr>>> {
+        if self.version < Version::Py313 || self.eat_op("=").is_none() {
+            return Ok(None);
+        }
+        let value = if starred { self.star_expression()? } else { self.expression()? };
+        Ok(Some(Box::new(value)))
+    }
+
     fn function_def(&mut self, start: usize, is_async: bool, decorator_list: Vec<Expr>) -> PResult<Stmt> {
         let keyword = self.expect_kw("def")?;
         let name = self.expect_name()?.0;
-        let type_params = self.type_params()?;
+        let type_params = self.optional_type_params()?;
         if !self.at_op("(") {
             return Err(self.error("expected '('"));
         }
@@ -1347,7 +1495,7 @@ impl<'a> Parser<'a> {
     fn class_def(&mut self, decorator_list: Vec<Expr>) -> PResult<Stmt> {
         let start = self.bump();
         let name = self.expect_name()?.0;
-        let type_params = self.type_params()?;
+        let type_params = self.optional_type_params()?;
         let (mut bases, mut keywords) = (Vec::new(), Vec::new());
         if self.at_op("(") {
             let (args, kws) = self.call_arguments()?;
@@ -1387,6 +1535,7 @@ pub fn expr_name(node: &Expr) -> &'static str {
         ExprKind::Dict { .. } => "dict literal",
         ExprKind::Set { .. } => "set display",
         ExprKind::JoinedStr { .. } | ExprKind::FormattedValue { .. } => "f-string expression",
+        ExprKind::TemplateStr { .. } | ExprKind::Interpolation { .. } => "t-string expression",
         ExprKind::Compare { .. } => "comparison",
         ExprKind::IfExp { .. } => "conditional expression",
         ExprKind::NamedExpr { .. } => "named expression",

@@ -1,4 +1,4 @@
-//! Identifier tables generated from CPython 3.12 (Unicode 15.0) by
+//! Identifier tables generated from CPython 3.12 (Unicode 15.0.0) by
 //! scripts/gen_identifier_tables.py. Do not edit by hand.
 
 pub static XID_START: [(u32, u32); 664] = [

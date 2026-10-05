@@ -131,6 +131,11 @@ fn format_text(py: Python<'_>, text: &str, path: &str, width: Option<usize>, hug
 
 #[pymodule]
 fn refactrail_core(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Parse with the grammar of the Python running this module (3.12's for
+    // older ones, the newest supported for newer ones).
+    let minor: u32 = module.py().import("sys")?.getattr("version_info")?.getattr("minor")?.extract()?;
+    refactrail_engine::Version::configure(refactrail_engine::Version::from_minor(minor));
+    module.add("PYTHON_GRAMMAR", format!("3.{}", refactrail_engine::Version::default().minor()))?;
     module.add_function(wrap_pyfunction!(check_source, module)?)?;
     module.add_function(wrap_pyfunction!(check_files, module)?)?;
     module.add_function(wrap_pyfunction!(lint_files, module)?)?;

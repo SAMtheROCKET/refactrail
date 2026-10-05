@@ -36,7 +36,9 @@ def python_dump_str(text_str: str, attributes_bool: bool) -> str:
             return f"ERROR {getattr(error, 'lineno', 0)}"
         except (RecursionError, MemoryError):
             return "ERROR recursion"
-    return ast.dump(tree, include_attributes=attributes_bool)
+    # Since 3.13 ast.dump hides empty fields unless asked to show them.
+    extra_dict = {"show_empty": True} if sys.version_info >= (3, 13) else {}
+    return ast.dump(tree, include_attributes=attributes_bool, **extra_dict)
 
 
 def rust_dumps_dict(binary_str: str, paths_list: list, attributes_bool: bool) -> dict:

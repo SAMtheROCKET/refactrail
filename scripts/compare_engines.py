@@ -16,6 +16,8 @@ from refactrail.engine import check_text_list
 from refactrail.models import Settings
 
 PROFILES_TUPLE = ("standard", "strict")
+# Files the Rust engine handed to the Python engine (newer syntax).
+FALLBACK_PATHS_SET: set = set()
 SHOWN_DIFFERENCES_INT = 40
 
 
@@ -69,6 +71,7 @@ def compare_file_list(path: Path, settings_info: Settings) -> list[str]:
     rust_rows = refactrail_core.check_source(str(path), raw_bytes,
                                              settings_info)
     if rust_rows is None:
+        FALLBACK_PATHS_SET.add(str(path))
         return []  # newer syntax than the Rust grammar: Python checks it
     rust_list = normalize_rows_list(rust_rows)
     return ([f"- {row_tuple}" for row_tuple in python_list
@@ -101,7 +104,8 @@ def main() -> int:
                 print(f"[{profile_str}] {path}")
                 print("\n".join(differences_list[:8]))
     print(f"{len(files_list)} files x {len(PROFILES_TUPLE)} profiles; "
-          f"{differing_int} differing file checks.")
+          f"{differing_int} differing file checks; "
+          f"{len(FALLBACK_PATHS_SET)} files checked by the Python engine.")
     return 1 if differing_int else 0
 
 

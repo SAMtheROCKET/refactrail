@@ -29,9 +29,14 @@ type Check = Result<(), CompileError>;
 
 /// Run all post-parse checks on a module, in CPython's order.
 pub fn check(module: &Module) -> Option<CompileError> {
+    check_version(module, refactrail_lexer::Version::default())
+}
+
+/// `check` with a given Python version's rules.
+pub fn check_version(module: &Module, version: refactrail_lexer::Version) -> Option<CompileError> {
     let run = || -> Result<(), CompileError> {
         let future_line = check_future(&module.body)?;
-        crate::symtable::check(module, future_annotations(&module.body))?;
+        crate::symtable::check_version(module, future_annotations(&module.body), version)?;
         let mut codegen = Codegen { future_line, frames: vec![Frame::module()] };
         codegen.statements(&module.body)
     };
@@ -41,8 +46,16 @@ pub fn check(module: &Module) -> Option<CompileError> {
 /// The post-parse checks, returning the module's symbol table when it
 /// compiles (so callers need not build it again).
 pub fn check_with_symbols(module: &Module) -> Result<crate::symtable::SymbolTable, CompileError> {
+    check_with_symbols_version(module, refactrail_lexer::Version::default())
+}
+
+/// `check_with_symbols` with a given Python version's rules.
+pub fn check_with_symbols_version(
+    module: &Module,
+    version: refactrail_lexer::Version,
+) -> Result<crate::symtable::SymbolTable, CompileError> {
     let future_line = check_future(&module.body)?;
-    let symbols = crate::symtable::build(module, future_annotations(&module.body))?;
+    let symbols = crate::symtable::build_version(module, future_annotations(&module.body), version)?;
     let mut codegen = Codegen { future_line, frames: vec![Frame::module()] };
     codegen.statements(&module.body)?;
     Ok(symbols)
@@ -131,7 +144,14 @@ fn expr_children<'a>(expr: &'a Expr, visit: &mut impl FnMut(&'a Expr) -> Check) 
             visit(value)?;
             maybe(format_spec, visit)
         }
-        ExprKind::JoinedStr { values } => each(values, visit),
+        ExprKind::JoinedStr { values } | ExprKind::TemplateStr { values } => each(values, visit),
+        ExprKind::Interpolation { value, format_spec, .. } => {
+            visit(value)?;
+            match format_spec {
+                Some(spec) => visit(spec),
+                None => Ok(()),
+            }
+        }
         ExprKind::Constant { .. } | ExprKind::Name { .. } => Ok(()),
         ExprKind::Attribute { value, .. } | ExprKind::Starred { value, .. } => visit(value),
         ExprKind::Subscript { value, slice, .. } => {

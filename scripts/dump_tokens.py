@@ -12,6 +12,12 @@ import io
 import json
 import sys
 import tokenize
+import warnings
+
+# CPython 3.14's tokenize module raises MemoryError on some malformed
+# t-strings that compile() reports correctly; such inputs have no defined
+# token oracle and are skipped.
+ORACLE_CRASH_STR = "ORACLE-CRASH"
 
 
 def dump_lines_list(text_str: str) -> list[str]:
@@ -26,8 +32,19 @@ def dump_lines_list(text_str: str) -> list[str]:
     """
     lines_list = []
     try:
-        for token_info in tokenize.generate_tokens(io.StringIO(
-                text_str, newline="").readline):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tokens_list = list(tokenize.generate_tokens(io.StringIO(
+                text_str, newline="").readline))
+    except MemoryError:
+        return [ORACLE_CRASH_STR]
+    except (tokenize.TokenError, SyntaxError) as error:
+        row_obj = getattr(error, "lineno", None)
+        if row_obj is None and len(getattr(error, "args", ())) > 1:
+            row_obj = error.args[1][0]
+        return [f"ERROR {row_obj if row_obj is not None else '?'}"]
+    try:
+        for token_info in tokens_list:
             name_str = tokenize.tok_name[token_info.type]
             (start_row, start_col), (end_row, end_col) = (token_info.start,
                                                           token_info.end)

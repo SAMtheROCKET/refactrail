@@ -5,7 +5,95 @@
 //! rows and code-point columns. Written from the language reference and
 //! CPython's observable behaviour; no third-party parser code is used.
 
-mod identifier_tables;
+mod identifier_tables_312;
+mod identifier_tables_313;
+mod identifier_tables_314;
+
+/// The Python version whose tokenizer is mirrored. Grammar and Unicode
+/// data differ between versions (t-strings and prefix checks in 3.14,
+/// format-spec newlines in 3.13, identifier characters in each).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Version {
+    Py312,
+    Py313,
+    Py314,
+}
+
+/// The process's configured version (minor number), 3.12 until set.
+static CONFIGURED_MINOR: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(12);
+
+/// `Version::default()` is the configured version: the running Python's
+/// in the PyO3 module, the `--python-version` choice in the native CLI.
+impl Default for Version {
+    fn default() -> Version {
+        Version::from_minor(CONFIGURED_MINOR.load(std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
+impl Version {
+    /// "3.12", "3.13" or "3.14".
+    pub fn parse(text: &str) -> Option<Version> {
+        match text.trim() {
+            "3.12" => Some(Version::Py312),
+            "3.13" => Some(Version::Py313),
+            "3.14" => Some(Version::Py314),
+            _ => None,
+        }
+    }
+
+    /// The minor version number (12, 13 or 14).
+    pub fn minor(self) -> u32 {
+        match self {
+            Version::Py312 => 12,
+            Version::Py313 => 13,
+            Version::Py314 => 14,
+        }
+    }
+
+    /// The newest supported version.
+    pub const LATEST: Version = Version::Py314;
+
+    /// The supported version for a Python 3 minor number: older ones use
+    /// 3.12's grammar, newer ones the newest supported grammar.
+    pub fn from_minor(minor: u32) -> Version {
+        match minor {
+            0..=12 => Version::Py312,
+            13 => Version::Py313,
+            _ => Version::Py314,
+        }
+    }
+
+    /// Make `version` the default for this process (set once at start-up).
+    pub fn configure(version: Version) {
+        CONFIGURED_MINOR.store(version.minor(), std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+struct IdentifierTables {
+    start: &'static [(u32, u32)],
+    cont: &'static [(u32, u32)],
+    nonprintable: &'static [(u32, u32)],
+}
+
+fn identifier_tables(version: Version) -> IdentifierTables {
+    match version {
+        Version::Py312 => IdentifierTables {
+            start: &identifier_tables_312::XID_START,
+            cont: &identifier_tables_312::XID_CONTINUE,
+            nonprintable: &identifier_tables_312::NONPRINTABLE,
+        },
+        Version::Py313 => IdentifierTables {
+            start: &identifier_tables_313::XID_START,
+            cont: &identifier_tables_313::XID_CONTINUE,
+            nonprintable: &identifier_tables_313::NONPRINTABLE,
+        },
+        Version::Py314 => IdentifierTables {
+            start: &identifier_tables_314::XID_START,
+            cont: &identifier_tables_314::XID_CONTINUE,
+            nonprintable: &identifier_tables_314::NONPRINTABLE,
+        },
+    }
+}
 
 use std::fmt;
 
@@ -23,6 +111,9 @@ pub enum Kind {
     FStringStart,
     FStringMiddle,
     FStringEnd,
+    TStringStart,
+    TStringMiddle,
+    TStringEnd,
     EndMarker,
 }
 
@@ -42,6 +133,9 @@ impl Kind {
             Kind::FStringStart => "FSTRING_START",
             Kind::FStringMiddle => "FSTRING_MIDDLE",
             Kind::FStringEnd => "FSTRING_END",
+            Kind::TStringStart => "TSTRING_START",
+            Kind::TStringMiddle => "TSTRING_MIDDLE",
+            Kind::TStringEnd => "TSTRING_END",
             Kind::EndMarker => "ENDMARKER",
         }
     }
@@ -105,6 +199,14 @@ struct FString {
     /// A top-level `:`, `!` or `}` ended the field's expression
     /// (CPython's `last_expr_end != -1`).
     expr_ended: bool,
+    /// A t-string (3.14): TSTRING tokens and "t-string:" messages.
+    template: bool,
+}
+
+impl FString {
+    fn prefix(&self) -> char {
+        if self.template { 't' } else { 'f' }
+    }
 }
 
 /// Length of the three- or two-character operator starting with these
@@ -128,7 +230,12 @@ const ONE_CHAR_OPS: &[u8] = b"+-*/%@&|^~<>()[]{},:;.=!";
 /// Tokenize Python source text (already decoded, without a BOM), as
 /// CPython's `tokenize` module does.
 pub fn tokenize(source: &str) -> Result<Vec<Token>, LexError> {
-    let (tokens, error) = tokenize_partial(source, false);
+    tokenize_version(source, Version::default())
+}
+
+/// `tokenize` for a given Python version.
+pub fn tokenize_version(source: &str, version: Version) -> Result<Vec<Token>, LexError> {
+    let (tokens, error) = tokenize_into_version(source, false, version, Vec::with_capacity(source.len() / 6 + 16));
     match error {
         Some(error) => Err(error),
         None => Ok(tokens),
@@ -157,7 +264,18 @@ impl TokenSink for Vec<Token> {
 /// Tokenize into a sink (see `tokenize_partial`), returning the sink and
 /// the error that stopped tokenizing, if any.
 pub fn tokenize_into<S: TokenSink>(source: &str, check_brackets: bool, sink: S) -> (S, Option<LexError>) {
+    tokenize_into_version(source, check_brackets, Version::default(), sink)
+}
+
+/// `tokenize_into` for a given Python version.
+pub fn tokenize_into_version<S: TokenSink>(
+    source: &str,
+    check_brackets: bool,
+    version: Version,
+    sink: S,
+) -> (S, Option<LexError>) {
     let mut lexer = Lexer {
+        version,
         check_brackets,
         byte_columns: check_brackets,
         src: source,
@@ -179,6 +297,7 @@ pub fn tokenize_into<S: TokenSink>(source: &str, check_brackets: bool, sink: S) 
 }
 
 struct Lexer<'a, S> {
+    version: Version,
     check_brackets: bool,
     /// Report byte columns (the parser's mode) instead of tokenize's
     /// character columns.
@@ -228,14 +347,14 @@ fn in_ranges(code: u32, ranges: &[(u32, u32)]) -> bool {
 
 /// The index (in characters) and value of the first character that keeps
 /// a name from being an identifier, as `_PyUnicode_ScanIdentifier` finds.
-fn first_invalid_identifier_char(name: &str) -> Option<(usize, char)> {
+fn first_invalid_identifier_char(name: &str, tables: &IdentifierTables) -> Option<(usize, char)> {
     name.chars().enumerate().find(|&(index, c)| {
         if c.is_ascii() {
             !(c == '_' || c.is_ascii_alphabetic() || (index > 0 && c.is_ascii_digit()))
         } else if index == 0 {
-            !in_ranges(c as u32, &identifier_tables::XID_START)
+            !in_ranges(c as u32, tables.start)
         } else {
-            !in_ranges(c as u32, &identifier_tables::XID_CONTINUE)
+            !in_ranges(c as u32, tables.cont)
         }
     })
 }
@@ -250,6 +369,45 @@ fn expand_bare_cr(text: &str) -> String {
         }
     }
     out
+}
+
+/// The kind of string a prefix starts.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StringKind {
+    Plain,
+    Format,
+    Template,
+}
+
+/// Python 3.14's prefix scan: each of b, u, r, f and t (any case) at most
+/// once. Returns (saw_b, saw_r, saw_u, saw_f, saw_t), or None when the word
+/// is not entirely such a prefix.
+fn prefix_letters(word: &str) -> Option<[bool; 5]> {
+    let mut seen = [false; 5];
+    for byte in word.bytes() {
+        let index = match byte.to_ascii_lowercase() {
+            b'b' => 0,
+            b'r' => 1,
+            b'u' => 2,
+            b'f' => 3,
+            b't' => 4,
+            _ => return None,
+        };
+        if seen[index] {
+            return None;
+        }
+        seen[index] = true;
+    }
+    Some(seen)
+}
+
+/// Python 3.14's error for an incompatible prefix pair, in CPython's order.
+fn incompatible_prefixes(seen: [bool; 5]) -> Option<(char, char)> {
+    let [b, r, u, f, t] = seen;
+    [(u && b, 'u', 'b'), (u && r, 'u', 'r'), (u && f, 'u', 'f'), (u && t, 'u', 't'), (b && f, 'b', 'f'), (b && t, 'b', 't'), (f && t, 'f', 't')]
+        .into_iter()
+        .find(|(clash, _, _)| *clash)
+        .map(|(_, first, second)| (first, second))
 }
 
 fn string_prefix(word: &str) -> Option<(bool, bool)> {
@@ -592,7 +750,7 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
             }
             b'0'..=b'9' => self.lex_number(start, start_pos)?,
             b'.' if self.peek(1).is_ascii_digit() => self.lex_number(start, start_pos)?,
-            b'\'' | b'"' => self.lex_string(start, start_pos, false, false)?,
+            b'\'' | b'"' => self.lex_string(start, start_pos, StringKind::Plain, false)?,
             _ => {
                 let is_name = if byte.is_ascii() { byte == b'_' || byte.is_ascii_alphabetic() } else { is_id_start(self.current_char()) };
                 if is_name {
@@ -621,16 +779,35 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
             }
         }
         let word = &self.src[start..self.i];
-        if word.len() <= 2 && matches!(self.peek(0), b'\'' | b'"') {
-            if let Some((is_fstring, raw)) = string_prefix(word) {
-                return self.lex_string(start, start_pos, is_fstring, raw);
+        if matches!(self.peek(0), b'\'' | b'"') {
+            if self.version >= Version::Py314 {
+                if let Some(seen) = prefix_letters(word) {
+                    if let Some((first, second)) = incompatible_prefixes(seen) {
+                        let column = self.char_column(self.line_start, start) + 1;
+                        return self.error_offset(self.line, column, &format!("'{first}' and '{second}' prefixes are incompatible"));
+                    }
+                    let kind = if seen[4] {
+                        StringKind::Template
+                    } else if seen[3] {
+                        StringKind::Format
+                    } else {
+                        StringKind::Plain
+                    };
+                    return self.lex_string(start, start_pos, kind, seen[1]);
+                }
+            } else if word.len() <= 2 {
+                if let Some((is_fstring, raw)) = string_prefix(word) {
+                    let kind = if is_fstring { StringKind::Format } else { StringKind::Plain };
+                    return self.lex_string(start, start_pos, kind, raw);
+                }
             }
         }
         if self.byte_columns && !word.is_ascii() {
-            if let Some((index, c)) = first_invalid_identifier_char(word) {
+            let tables = identifier_tables(self.version);
+            if let Some((index, c)) = first_invalid_identifier_char(word, &tables) {
                 // CPython reports the column just past the bad character.
                 let offset = self.char_column(self.line_start, start) + index as u32 + 1;
-                let message = if in_ranges(c as u32, &identifier_tables::NONPRINTABLE) {
+                let message = if in_ranges(c as u32, tables.nonprintable) {
                     format!("invalid non-printable character U+{:04X}", c as u32)
                 } else {
                     format!("invalid character '{c}' (U+{:04X})", c as u32)
@@ -770,7 +947,7 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
         &mut self,
         start: usize,
         start_pos: Position,
-        is_fstring: bool,
+        kind: StringKind,
         raw: bool,
     ) -> Result<(), LexError> {
         let quote = self.b[self.i];
@@ -778,9 +955,11 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
         let start_line = self.line;
         let start_line_start = self.line_start;
         self.i += if triple { 3 } else { 1 };
-        if is_fstring {
-            self.push(Kind::FStringStart, start, start_pos, None);
+        if kind != StringKind::Plain {
+            let template = kind == StringKind::Template;
+            self.push(if template { Kind::TStringStart } else { Kind::FStringStart }, start, start_pos, None);
             self.modes.push(FString {
+                template,
                 quote,
                 triple,
                 raw,
@@ -803,7 +982,8 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
             }
             if self.at_end() {
                 if self.closes_enclosing_fstring(quote, triple) {
-                    return self.error_offset(start_line, self.char_column(start_line_start, start) + 1, "f-string: expecting '}'");
+                    let message = format!("{}-string: expecting '}}'", self.mode_prefix());
+                    return self.error_offset(start_line, self.char_column(start_line_start, start) + 1, &message);
                 }
                 let (message, detected) = if triple {
                     ("unterminated triple-quoted string literal", self.last_content_line())
@@ -838,7 +1018,8 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
             }
             if self.newline_len(self.i) > 0 && !triple {
                 if self.closes_enclosing_fstring(quote, triple) {
-                    return self.error_offset(start_line, self.char_column(start_line_start, start) + 1, "f-string: expecting '}'");
+                    let message = format!("{}-string: expecting '}}'", self.mode_prefix());
+                    return self.error_offset(start_line, self.char_column(start_line_start, start) + 1, &message);
                 }
                 let message = format!("unterminated string literal (detected at line {})", self.line);
                 return self.error_offset(start_line, self.char_column(start_line_start, start) + 1, &message);
@@ -888,7 +1069,7 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
             // tokenize does not check bracket matching; the parser does.
             b')' | b']' | b'}' => {
                 if byte == b'}' && self.modes.last().is_some_and(|fstring| fstring.depth == 0) {
-                    return self.error("f-string: single '}' is not allowed");
+                    return self.error(&format!("{}-string: single '}}' is not allowed", self.mode_prefix()));
                 }
                 let opened = self.brackets.pop();
                 if self.check_brackets {
@@ -909,15 +1090,25 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
         Ok(())
     }
 
+    /// 'f' or 't': the innermost f-string's prefix, for messages.
+    fn mode_prefix(&self) -> char {
+        self.modes.last().map_or('f', FString::prefix)
+    }
+
+    fn middle_kind(&self) -> Kind {
+        if self.modes.last().is_some_and(|fstring| fstring.template) { Kind::TStringMiddle } else { Kind::FStringMiddle }
+    }
+
     /// Whether a string's quote is the innermost f-string's own quote.
     fn closes_enclosing_fstring(&self, quote: u8, triple: bool) -> bool {
         self.modes.last().is_some_and(|fstring| fstring.quote == quote && fstring.triple == triple)
     }
 
     fn unterminated_fstring<T>(&self, fstring: &FString, detected: u32) -> Result<T, LexError> {
-        let kind = if fstring.triple { "unterminated triple-quoted f-string literal" } else { "unterminated f-string literal" };
+        let triple = if fstring.triple { "triple-quoted " } else { "" };
         let column = self.char_column(fstring.start_line_start, fstring.start_offset);
-        self.error_offset(fstring.start_line, column + 1, &format!("{kind} (detected at line {detected})"))
+        let message = format!("unterminated {triple}{}-string literal (detected at line {detected})", fstring.prefix());
+        self.error_offset(fstring.start_line, column + 1, &message)
     }
 
     /// CPython's parser-mode checks for a closing bracket.
@@ -955,7 +1146,8 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
                 value = expand_bare_cr(&value);
             }
             let slice_matches = &self.src[start..self.i] == value.as_str();
-            self.push(Kind::FStringMiddle, start, start_pos, if slice_matches { None } else { Some(value) });
+            let kind = self.middle_kind();
+            self.push(kind, start, start_pos, if slice_matches { None } else { Some(value) });
         }
     }
 
@@ -973,7 +1165,8 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
     fn finish_middle(&mut self, start: usize, start_pos: Position, text: &mut String, always: bool) {
         if text.is_empty() && always {
             let position = self.here();
-            self.push_synthetic(Kind::FStringMiddle, "", position, position);
+            let kind = self.middle_kind();
+            self.push_synthetic(kind, "", position, position);
         }
         self.flush_middle(start, start_pos, text);
     }
@@ -987,7 +1180,7 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
             let end_start = self.i;
             let end_pos = self.here();
             self.i += if triple { 3 } else { 1 };
-            self.push(Kind::FStringEnd, end_start, end_pos, None);
+            self.push(if fstring.template { Kind::TStringEnd } else { Kind::FStringEnd }, end_start, end_pos, None);
             self.modes.pop();
             return Ok(());
         }
@@ -1057,6 +1250,12 @@ impl<'a, S: TokenSink> Lexer<'a, S> {
                     }
                 }
                 b'\n' if in_spec && !triple => {
+                    if self.version >= Version::Py313 {
+                        let prefix = fstring.prefix();
+                        return self.error(&format!(
+                            "{prefix}-string: newlines are not allowed in format specifiers for single quoted {prefix}-strings"
+                        ));
+                    }
                     // CPython 3.12 ends a single-quoted spec at a newline
                     // and resumes the replacement field.
                     self.finish_middle(start, start_pos, &mut text, true);
@@ -1107,7 +1306,12 @@ pub fn json_escape(text: &str) -> String {
 
 /// Render tokens in the dump format of `scripts/dump_tokens.py`.
 pub fn dump(source: &str) -> String {
-    match tokenize(source) {
+    dump_version(source, Version::default())
+}
+
+/// `dump` for a given Python version.
+pub fn dump_version(source: &str, version: Version) -> String {
+    match tokenize_version(source, version) {
         Ok(tokens) => {
             let mut out = String::new();
             for token in &tokens {

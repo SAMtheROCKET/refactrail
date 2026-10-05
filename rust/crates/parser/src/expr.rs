@@ -43,7 +43,7 @@ impl<'a> Parser<'a> {
             // Not a hard keyword, or one of the keywords that start one
             // (not, lambda, await, True, False, None).
             Kind::Name => !crate::parser::is_keyword_code(self.code()) || matches!(self.code(), 76 | 74 | 57 | 52 | 50 | 51),
-            Kind::Number | Kind::String | Kind::FStringStart => true,
+            Kind::Number | Kind::String | Kind::FStringStart | Kind::TStringStart => true,
             // ( [ { - + ~ * ...
             Kind::Op => matches!(self.code(), 1 | 3 | 5 | 11 | 10 | 25 | 12 | 46),
             _ => false,
@@ -182,7 +182,7 @@ impl<'a> Parser<'a> {
             return Ok(());
         }
         if self.kind() == Kind::Name
-            && (matches!(self.kind_at(start + 1), Kind::String | Kind::FStringStart) || is_soft_keyword_prefix(self.text()))
+            && (matches!(self.kind_at(start + 1), Kind::String | Kind::FStringStart | Kind::TStringStart) || is_soft_keyword_prefix(self.text()))
         {
             return Ok(());
         }
@@ -687,7 +687,7 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Ok(constant_node(constant, self.loc(start)))
             }
-            Kind::String | Kind::FStringStart => self.strings(),
+            Kind::String | Kind::FStringStart | Kind::TStringStart => self.strings(),
             Kind::Op => match self.code() {
                 1 => self.parenthesized(),
                 3 => self.list_display(),

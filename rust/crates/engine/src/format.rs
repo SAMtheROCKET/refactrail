@@ -117,7 +117,7 @@ pub fn protected_lines(index: &TokenIndex, tree: &Module, fstrings: bool) -> Fas
         }
         impl<'a> Visitor<'a> for Fstrings<'_> {
             fn visit_expr(&mut self, node: &'a Expr) {
-                if matches!(node.kind, ExprKind::JoinedStr { .. }) {
+                if matches!(node.kind, ExprKind::JoinedStr { .. } | ExprKind::TemplateStr { .. }) {
                     self.protected.extend(node.loc.line..=node.loc.end_line);
                 }
                 walk_expr(self, node);

@@ -3,6 +3,13 @@
 
 use crate::unicode;
 
+thread_local! {
+    /// The Python version whose `repr` the tree dump mirrors (which code
+    /// points are printable); set by `dump_module_version`.
+    pub(crate) static REPR_VERSION: std::cell::Cell<refactrail_lexer::Version> =
+        const { std::cell::Cell::new(refactrail_lexer::Version::Py312) };
+}
+
 /// Source span: 1-based lines, UTF-8 byte columns (as CPython's `ast`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct Loc {
@@ -423,7 +430,7 @@ fn write_str_repr(out: &mut String, points: &[u32]) {
             }
             _ if point < 0x20 || point == 0x7f => out.push_str(&format!("\\x{point:02x}")),
             _ if point < 0x7f => out.push(char::from_u32(point).unwrap_or('?')),
-            _ if !unicode::is_printable(point) => {
+            _ if !unicode::is_printable_version(point, REPR_VERSION.with(|version| version.get())) => {
                 if point <= 0xff {
                     out.push_str(&format!("\\x{point:02x}"));
                 } else if point <= 0xffff {

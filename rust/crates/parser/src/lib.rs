@@ -23,15 +23,26 @@ mod unicode;
 pub use ast::{dump_module, Module};
 pub use node::{Constant, Loc};
 pub use parser::ParseError;
+pub use refactrail_lexer::Version;
 
 /// Parse a module (source already decoded, without a BOM).
 pub fn parse(source: &str) -> Result<Module, ParseError> {
     parser::Parser::new(source).parse_module()
 }
 
+/// `parse` with a given Python version's grammar.
+pub fn parse_version(source: &str, version: Version) -> Result<Module, ParseError> {
+    parser::Parser::new_version(source, version).parse_module()
+}
+
 /// Parse a module and also return the byte spans of its comments.
 pub fn parse_with_comments(source: &str) -> Result<(Module, Vec<(usize, usize)>), ParseError> {
-    let mut parser = parser::Parser::new(source);
+    parse_with_comments_version(source, Version::default())
+}
+
+/// `parse_with_comments` with a given Python version's grammar.
+pub fn parse_with_comments_version(source: &str, version: Version) -> Result<(Module, Vec<(usize, usize)>), ParseError> {
+    let mut parser = parser::Parser::new_version(source, version);
     let comments = std::mem::take(&mut parser.comments);
     parser.parse_module().map(|tree| (tree, comments))
 }
@@ -39,12 +50,17 @@ pub fn parse_with_comments(source: &str) -> Result<(Module, Vec<(usize, usize)>)
 /// What `compile(source, path, "exec")` reports: None when it compiles,
 /// else (line, offset, message) as SyntaxError's lineno, offset and msg.
 pub fn compile_check(source: &str) -> Option<(u32, u32, String)> {
+    compile_check_version(source, Version::default())
+}
+
+/// `compile_check` for a given Python version.
+pub fn compile_check_version(source: &str, version: Version) -> Option<(u32, u32, String)> {
     if source.contains('\0') {
         return Some((1, 1, "source code string cannot contain null bytes".into()));
     }
-    match parse(source) {
+    match parse_version(source, version) {
         Err(error) => Some(syntax_error_tuple(source, error)),
-        Ok(tree) => compile::check(&tree).map(|error| (error.line, error.offset, error.message)),
+        Ok(tree) => compile::check_version(&tree, version).map(|error| (error.line, error.offset, error.message)),
     }
 }
 
@@ -64,10 +80,24 @@ fn char_offset(source: &str, line: u32, byte_col: u32) -> u32 {
 /// `ast.dump(ast.parse(source), include_attributes=attributes)`, or
 /// "ERROR line" when the source does not parse.
 pub fn dump_source(source: &str, attributes: bool) -> String {
-    match parse(source) {
-        Ok(tree) => dump_module(&tree, attributes),
+    dump_source_version(source, attributes, Version::default())
+}
+
+/// `dump_source` for a given Python version.
+pub fn dump_source_version(source: &str, attributes: bool, version: Version) -> String {
+    match parse_version(source, version) {
+        Ok(tree) => dump_module_version(&tree, attributes, version),
         Err(error) => format!("ERROR {}", error.line),
     }
+}
+
+/// `ast.dump` as a given Python version prints it (its `repr` of strings
+/// depends on that version's Unicode data).
+pub fn dump_module_version(tree: &Module, attributes: bool, version: Version) -> String {
+    let previous = node::REPR_VERSION.with(|current| current.replace(version));
+    let text = dump_module(tree, attributes);
+    node::REPR_VERSION.with(|current| current.set(previous));
+    text
 }
 
 /// Development only: tokenize and prepare the parser without parsing.
@@ -79,11 +109,16 @@ pub fn prepare_only(source: &str) -> usize {
 /// Development: the symbol table dump compared with CPython's symtable by
 /// scripts/symtable_parity.py, or "ERROR ..." when the source fails.
 pub fn dump_symtable_source(source: &str) -> String {
-    let tree = match parse(source) {
+    dump_symtable_source_version(source, Version::default())
+}
+
+/// `dump_symtable_source` for a given Python version.
+pub fn dump_symtable_source_version(source: &str, version: Version) -> String {
+    let tree = match parse_version(source, version) {
         Ok(tree) => tree,
         Err(error) => return format!("ERROR {}", error.line),
     };
-    match symtable::build(&tree, compile::future_annotations(&tree.body)) {
+    match symtable::build_version(&tree, compile::future_annotations(&tree.body), version) {
         Ok(table) => symtable::dump(&table),
         Err(error) => format!("ERROR {} {}", error.line, error.message),
     }

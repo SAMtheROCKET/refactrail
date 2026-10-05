@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- The Rust engine parses Python 3.13 and 3.14 natively: type parameter
+  defaults, t-strings, `except A, B:`, 3.14's string prefix checks and
+  lazy annotations, and each version's Unicode data. Tokens, syntax trees,
+  `compile()` outcomes and symbol tables match CPython 3.12, 3.13 and 3.14
+  on their standard libraries and a 6,988-file corpus; engine findings
+  match the Python engine with no fallbacks.
+- refactrail-core uses the grammar of the running Python
+  (`PYTHON_GRAMMAR`); the native CLI takes `--python-version` (default
+  3.14) or `REFACTRAIL_PYTHON_VERSION`.
+- Formatter: t-strings are kept exactly as written, like f-strings.
+- Parser fixes found by the new fuzzing (all versions): `U"..."` no longer
+  gets `kind='u'`; folded text keeps the `u` kind of its first literal;
+  `except A, B:` reports CPython's "must be parenthesized" message; a
+  failing optional type parameter list backtracks like CPython's.
+
 ## 0.3.2a0 - Python 3.13/3.14 syntax fix, 2026-10-05
 
 - Fix: with the Rust engine (the default once installed), `refactrail

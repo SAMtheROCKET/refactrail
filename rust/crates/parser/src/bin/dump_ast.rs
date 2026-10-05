@@ -50,6 +50,8 @@ fn main() {
         return;
     }
     let attributes = std::env::var_os("RT_DUMP_NO_ATTRIBUTES").is_none();
+    // RT_PYTHON_VERSION=3.13 parses that version's grammar (default 3.12).
+    let version = std::env::var("RT_PYTHON_VERSION").ok().and_then(|text| refactrail_parser::Version::parse(&text)).unwrap_or_default();
     let verbose = std::env::var_os("RT_DUMP_VERBOSE").is_some();
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
@@ -72,19 +74,19 @@ fn main() {
             continue;
         }
         if std::env::var_os("RT_DUMP_SYMTABLE").is_some() {
-            let _ = writeln!(out, "{}", refactrail_parser::dump_symtable_source(source));
+            let _ = writeln!(out, "{}", refactrail_parser::dump_symtable_source_version(source, version));
             continue;
         }
         if std::env::var_os("RT_DUMP_COMPILE").is_some() {
-            let _ = match refactrail_parser::compile_check(source) {
+            let _ = match refactrail_parser::compile_check_version(source, version) {
                 None => writeln!(out, "OK"),
                 Some((line, offset, message)) => writeln!(out, "ERROR {line} {offset} {message}"),
             };
             continue;
         }
-        match refactrail_parser::parse(source) {
+        match refactrail_parser::parse_version(source, version) {
             Ok(tree) => {
-                let _ = writeln!(out, "{}", refactrail_parser::dump_module(&tree, attributes));
+                let _ = writeln!(out, "{}", refactrail_parser::dump_module_version(&tree, attributes, version));
             }
             Err(error) => {
                 if verbose {

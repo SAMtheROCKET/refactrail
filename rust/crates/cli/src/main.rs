@@ -240,8 +240,40 @@ fn run(arguments: &[String]) -> Result<i32, String> {
     Ok(if options.exit_zero || rows.is_empty() { 0 } else { 1 })
 }
 
+/// Take `--python-version X.Y` (anywhere) or REFACTRAIL_PYTHON_VERSION and
+/// configure the grammar; the default is the newest supported version.
+fn configure_python_version(arguments: &mut Vec<String>) -> Result<(), String> {
+    let mut chosen = std::env::var("REFACTRAIL_PYTHON_VERSION").ok();
+    let mut index = 0;
+    while index < arguments.len() {
+        if let Some(value) = arguments[index].strip_prefix("--python-version=") {
+            chosen = Some(value.to_string());
+            arguments.remove(index);
+        } else if arguments[index] == "--python-version" {
+            arguments.remove(index);
+            if index >= arguments.len() {
+                return Err("argument --python-version: expected one argument".into());
+            }
+            chosen = Some(arguments.remove(index));
+        } else {
+            index += 1;
+        }
+    }
+    let version = match chosen {
+        None => refactrail_engine::Version::LATEST,
+        Some(text) => refactrail_engine::Version::parse(&text)
+            .ok_or_else(|| format!("argument --python-version: invalid choice: '{text}' (choose from '3.12', '3.13', '3.14')"))?,
+    };
+    refactrail_engine::Version::configure(version);
+    Ok(())
+}
+
 fn main() {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let mut arguments: Vec<String> = std::env::args().skip(1).collect();
+    if let Err(message) = configure_python_version(&mut arguments) {
+        eprintln!("refactrail: error: {message}");
+        std::process::exit(2);
+    }
     match arguments.first().map(String::as_str) {
         Some("--version") => {
             println!("{VERSION}");

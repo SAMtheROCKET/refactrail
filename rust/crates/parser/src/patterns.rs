@@ -137,7 +137,7 @@ impl<'a> Parser<'a> {
         match self.kind() {
             Kind::Number => return self.value_pattern_from_expression(),
             Kind::Op if self.at_op("-") => return self.value_pattern_from_expression(),
-            Kind::String | Kind::FStringStart => {
+            Kind::String | Kind::FStringStart | Kind::TStringStart => {
                 let value = self.strings()?;
                 let loc = value.loc;
                 return Ok(pattern(PatternKind::MatchValue { value: Box::new(value) }, loc));
@@ -235,7 +235,7 @@ impl<'a> Parser<'a> {
                 rest = Some(self.expect_name()?.0);
             } else {
                 let key = match self.kind() {
-                    Kind::String | Kind::FStringStart => self.strings()?,
+                    Kind::String | Kind::FStringStart | Kind::TStringStart => self.strings()?,
                     Kind::Number => self.signed_sum()?,
                     Kind::Op if self.at_op("-") => self.signed_sum()?,
                     Kind::Name if matches!(self.code(), 50..=52) => {

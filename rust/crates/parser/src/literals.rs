@@ -69,7 +69,8 @@ pub fn split_string(text: &str) -> StringParts<'_> {
     StringParts {
         raw: prefix.contains('r'),
         bytes: prefix.contains('b'),
-        unicode_kind: prefix.contains('u'),
+        // CPython marks only a lowercase `u` prefix (`U'x'` has no kind).
+        unicode_kind: text[..quote_at].contains('u'),
         body,
     }
 }
@@ -85,6 +86,11 @@ pub fn normalize_newlines(text: &str) -> std::borrow::Cow<'_, str> {
 
 /// Decode the body of a str literal (or f-string text) to code points.
 pub fn decode_str(body: &str, raw: bool) -> Result<Vec<u32>, String> {
+    decode_str_version(body, raw, refactrail_lexer::Version::default())
+}
+
+/// `decode_str` with a given Python version's Unicode names.
+pub fn decode_str_version(body: &str, raw: bool, version: refactrail_lexer::Version) -> Result<Vec<u32>, String> {
     let body = normalize_newlines(body);
     if raw || !body.contains('\\') {
         if body.is_ascii() {
@@ -172,7 +178,7 @@ pub fn decode_str(body: &str, raw: bool) -> Result<Vec<u32>, String> {
                     return Err(decode_error(escape_start, index + 1, malformed));
                 }
                 let name: String = chars[index + 1..index + close].iter().collect();
-                let Some(point) = unicode::lookup(&name) else {
+                let Some(point) = unicode::lookup_version(&name, version) else {
                     return Err(decode_error(escape_start, index + close + 1, "unknown Unicode character name"));
                 };
                 index += close + 1;

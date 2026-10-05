@@ -43,6 +43,12 @@ class Atom:
     kind: str
     depth: int
 
+# f-string and (Python 3.14) t-string boundaries; -1 where not supported.
+STRING_START_TYPES_TUPLE = (getattr(tokenize, "FSTRING_START", -1),
+                            getattr(tokenize, "TSTRING_START", -1))
+STRING_END_TYPES_TUPLE = (getattr(tokenize, "FSTRING_END", -1),
+                          getattr(tokenize, "TSTRING_END", -1))
+
 
 def classify_atom_str(token_info: tokenize.TokenInfo) -> str:
     """Name the layout kind of one token.
@@ -107,12 +113,12 @@ def build_atoms_list(tokens_list: list, lines_list: list[str]) -> list | None:
             return None
         if token_info.type in SKIPPED_TYPES_TUPLE:
             continue
-        if token_info.type == getattr(tokenize, "FSTRING_START", -1):
+        if token_info.type in STRING_START_TYPES_TUPLE:
             nesting_int += 1
             fstring_start = fstring_start or token_info.start
             continue
         if nesting_int:
-            if token_info.type == getattr(tokenize, "FSTRING_END", -1):
+            if token_info.type in STRING_END_TYPES_TUPLE:
                 nesting_int -= 1
             if nesting_int:
                 continue

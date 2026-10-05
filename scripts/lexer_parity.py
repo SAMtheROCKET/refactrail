@@ -78,7 +78,7 @@ def main() -> int:
                          for path in Path(root_str).rglob("*.py")
                          if path.is_file()})
     categories, examples = Counter(), {}
-    matched_int = skipped_int = 0
+    matched_int = skipped_int = crashed_int = 0
     for index_int in range(0, len(paths_list), BATCH_INT):
         batch_list = paths_list[index_int:index_int + BATCH_INT]
         if len(batch_list) == 1:
@@ -91,6 +91,9 @@ def main() -> int:
                 skipped_int += 1
                 continue
             expected_list = dump_lines_list(text_str)
+            if expected_list == ["ORACLE-CRASH"]:
+                crashed_int += 1
+                continue
             actual_list = rust_dict.get(str(path), [])
             if expected_list == actual_list:
                 matched_int += 1
@@ -99,9 +102,11 @@ def main() -> int:
             key_str = category_str.split(":", 1)[0]
             categories[key_str] += 1
             examples.setdefault(key_str, (str(path), category_str))
-    total_int = len(set(paths_list)) - skipped_int
+    total_int = len(set(paths_list)) - skipped_int - crashed_int
     print(f"{matched_int}/{total_int} files identical "
-          f"({skipped_int} undecodable skipped)")
+          f"({skipped_int} undecodable skipped"
+          + (f", {crashed_int} where CPython's tokenize crashed"
+             if crashed_int else "") + ")")
     for key_str, count_int in categories.most_common():
         path_str, detail_str = examples[key_str]
         print(f"  {count_int:6}  {key_str}\n          e.g. {path_str}\n          {detail_str}")

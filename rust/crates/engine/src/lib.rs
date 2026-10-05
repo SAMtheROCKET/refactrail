@@ -26,6 +26,8 @@ pub use settings::{severity_of, Settings};
 /// 1 MB on the Windows main thread) are too small for them.
 pub const ANALYSIS_STACK_BYTES: usize = 64 << 20;
 
+pub use refactrail_parser::Version;
+
 /// Run `work` on a thread with ANALYSIS_STACK_BYTES of stack.
 pub fn with_analysis_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
     std::thread::scope(|scope| {

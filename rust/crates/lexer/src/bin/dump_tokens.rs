@@ -5,6 +5,8 @@
 use std::io::Write;
 
 fn main() {
+    // RT_PYTHON_VERSION=3.13 mirrors that version's tokenizer (default 3.12).
+    let version = std::env::var("RT_PYTHON_VERSION").ok().and_then(|text| refactrail_lexer::Version::parse(&text)).unwrap_or_default();
     let paths: Vec<String> = std::env::args().skip(1).collect();
     let stdout = std::io::stdout();
     let mut out = std::io::BufWriter::new(stdout.lock());
@@ -27,10 +29,10 @@ fn main() {
         };
         let source = text.strip_prefix('\u{feff}').unwrap_or(&text);
         if std::env::var_os("RT_DUMP_VERBOSE").is_some() {
-            if let Err(error) = refactrail_lexer::tokenize(source) {
+            if let Err(error) = refactrail_lexer::tokenize_version(source, version) {
                 let _ = writeln!(out, "# {error}");
             }
         }
-        let _ = out.write_all(refactrail_lexer::dump(source).as_bytes());
+        let _ = out.write_all(refactrail_lexer::dump_version(source, version).as_bytes());
     }
 }

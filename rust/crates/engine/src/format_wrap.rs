@@ -413,14 +413,14 @@ fn build_atoms(tokens: &[&Tok], lines: &[&str]) -> Option<Vec<Atom>> {
         if matches!(token.kind, Kind::Nl | Kind::Newline | Kind::Indent | Kind::Dedent | Kind::EndMarker) {
             continue;
         }
-        if token.kind == Kind::FStringStart {
+        if matches!(token.kind, Kind::FStringStart | Kind::TStringStart) {
             nesting += 1;
             fstring_start.get_or_insert(token.start);
             continue;
         }
         let combined;
         let token = if nesting > 0 {
-            if token.kind == Kind::FStringEnd {
+            if matches!(token.kind, Kind::FStringEnd | Kind::TStringEnd) {
                 nesting -= 1;
             }
             if nesting > 0 {

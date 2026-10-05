@@ -8,6 +8,7 @@
 //! are inlined into their enclosing table as in CPython 3.12 (PEP 709).
 //! Behaviour is verified against CPython by `scripts/symtable_parity.py`.
 
+use refactrail_lexer::Version;
 use crate::ast::{
     Alias, Arguments, Comprehension as Generator, ExceptHandler, Expr, ExprContext, ExprKind, Keyword, MatchCase, Module,
     Pattern, PatternKind, Stmt, StmtKind, TypeParam, TypeParamKind, WithItem,
@@ -73,6 +74,15 @@ impl BlockType {
         }
     }
 
+    /// `SymbolTable.get_type()` as a given Python version names it.
+    pub fn name_for(self, version: Version) -> &'static str {
+        match self {
+            BlockType::TypeVarBound if version >= Version::Py313 => "type variable",
+            BlockType::TypeParam if version >= Version::Py313 => "type parameters",
+            _ => self.name(),
+        }
+    }
+
     fn is_function_like(self) -> bool {
         matches!(self, BlockType::Function | BlockType::TypeVarBound | BlockType::TypeAlias | BlockType::TypeParam)
     }
@@ -108,6 +118,20 @@ pub struct Table {
     comp_iter_target: bool,
     comp_iter_expr: u32,
     can_see_class_scope: bool,
+    /// What a type variable block evaluates (3.13's `ste_scope_info`):
+    /// "a TypeVar bound", "a ParamSpec default", ...
+    scope_info: Option<&'static str>,
+    /// Function-like for scoping (3.14 adds annotation blocks).
+    function_like: bool,
+    /// 3.14: the `__annotate__` block of this module or class body.
+    annotation_block: Option<usize>,
+    /// 3.14: `__conditional_annotations__` is already used here.
+    has_conditional_annotations: bool,
+    /// 3.14: inside an if/for/while/try/with/match body.
+    in_conditional_block: bool,
+    /// 3.14: visiting an annotation that is never evaluated (in a
+    /// function body), whose names are not recorded.
+    in_unevaluated_annotation: bool,
 }
 
 impl Table {
@@ -130,7 +154,13 @@ impl Table {
             comp_inlined: false,
             comp_iter_target: false,
             comp_iter_expr: 0,
+            function_like: block.is_function_like(),
+            annotation_block: None,
+            has_conditional_annotations: false,
+            in_conditional_block: false,
+            in_unevaluated_annotation: false,
             can_see_class_scope: false,
+            scope_info: None,
         }
     }
 
@@ -193,6 +223,8 @@ impl Table {
 /// All tables of a module; table 0 is the module ("top").
 pub struct SymbolTable {
     pub tables: Vec<Table>,
+    /// The Python version whose rules built the tables.
+    pub version: Version,
 }
 
 /// CPython's name mangling: `__name` in class `C` becomes `_C__name`.
@@ -214,25 +246,35 @@ pub fn mangle<'n>(private: Option<&str>, name: &'n str) -> std::borrow::Cow<'n, 
 
 /// Build and analyse the symbol tables of a module.
 pub fn build(module: &Module, future_annotations: bool) -> Result<SymbolTable, CompileError> {
-    let mut tables = visit_module(module, future_annotations)?;
-    analyze_tables(&mut tables)?;
-    Ok(SymbolTable { tables })
+    build_version(module, future_annotations, Version::default())
+}
+
+/// `build` with a given Python version's rules.
+pub fn build_version(module: &Module, future_annotations: bool, version: Version) -> Result<SymbolTable, CompileError> {
+    let mut tables = visit_module(module, future_annotations, version)?;
+    analyze_tables(&mut tables, version)?;
+    Ok(SymbolTable { tables, version })
 }
 
 /// Only the errors of the symbol table pass. The analysis can only fail
 /// for names with a global or nonlocal directive (statements, or `:=` in
 /// a comprehension), so it is skipped when no table records one.
 pub fn check(module: &Module, future_annotations: bool) -> Result<(), CompileError> {
-    let mut tables = visit_module(module, future_annotations)?;
+    check_version(module, future_annotations, Version::default())
+}
+
+/// `check` with a given Python version's rules.
+pub fn check_version(module: &Module, future_annotations: bool, version: Version) -> Result<(), CompileError> {
+    let mut tables = visit_module(module, future_annotations, version)?;
     if tables.iter().any(|table| !table.directives.is_empty()) {
-        analyze_tables(&mut tables)?;
+        analyze_tables(&mut tables, version)?;
     }
     Ok(())
 }
 
 /// The visit pass: raw definition flags for every table.
-fn visit_module(module: &Module, future_annotations: bool) -> Result<Vec<Table>, CompileError> {
-    let mut builder = Builder { tables: Vec::new(), stack: Vec::new(), private: None, future_annotations };
+fn visit_module(module: &Module, future_annotations: bool, version: Version) -> Result<Vec<Table>, CompileError> {
+    let mut builder = Builder { tables: Vec::new(), stack: Vec::new(), private: None, future_annotations, version };
     builder.enter_block(BlockType::Module, "top", 0, false);
     for statement in &module.body {
         builder.statement(statement)?;
@@ -242,11 +284,11 @@ fn visit_module(module: &Module, future_annotations: bool) -> Result<Vec<Table>,
 }
 
 /// The analysis pass: resolved scopes for every table.
-fn analyze_tables(tables: &mut Vec<Table>) -> Check {
+fn analyze_tables(tables: &mut Vec<Table>, version: Version) -> Check {
     let mut free = FastSet::default();
     let global = FastSet::default();
     let type_params = FastSet::default();
-    analyze_block(tables, 0, None, &mut free, &global, &type_params, None)
+    analyze_block(tables, 0, None, &mut free, &global, &type_params, None, version)
 }
 
 // ----- the visit pass ---------------------------------------------------
@@ -257,6 +299,7 @@ struct Builder {
     /// The class name used for mangling (CPython's `st_private`).
     private: Option<SmallStr>,
     future_annotations: bool,
+    version: Version,
 }
 
 impl Builder {
@@ -273,24 +316,52 @@ impl Builder {
         mangle(self.private.as_deref(), name)
     }
 
-    /// Open a block; annotation blocks are not linked to their parent.
+    /// Open a block. Annotation blocks are not linked to their parent
+    /// before 3.14, nor in 3.14 under `from __future__ import annotations`.
     fn enter_block(&mut self, block: BlockType, name: &str, lineno: u32, _annotation: bool) {
         let mut table = Table::new(block, name, lineno);
+        let py314 = self.version >= Version::Py314;
+        if py314 && block == BlockType::Annotation {
+            table.function_like = true;
+        }
         let previous = self.stack.last().copied();
         if let Some(previous) = previous {
             let parent = &self.tables[previous];
-            table.nested = parent.nested || parent.block.is_function_like();
+            table.nested = parent.nested || parent.function_like;
             table.comp_iter_expr = parent.comp_iter_expr;
         }
         let index = self.tables.len();
         self.tables.push(table);
         self.stack.push(index);
-        if block == BlockType::Annotation {
-            return;
+        let linked = block != BlockType::Annotation || (py314 && !self.future_annotations);
+        if linked {
+            if let Some(previous) = previous {
+                self.tables[previous].children.push(index);
+            }
         }
-        if let Some(previous) = previous {
-            self.tables[previous].children.push(index);
+        // 3.14 annotation, type variable and type alias blocks read an
+        // implicit `.format` parameter.
+        if py314 && matches!(block, BlockType::Annotation | BlockType::TypeVarBound | BlockType::TypeAlias) {
+            let loc = Loc { line: lineno, col: 0, end_line: lineno, end_col: 0 };
+            let _ = self.add_def(".format", DEF_PARAM, loc);
+            let _ = self.add_def(".format", USE, loc);
         }
+    }
+
+    /// Re-enter a block opened earlier (3.14's shared `__annotate__`).
+    fn enter_existing_block(&mut self, index: usize) {
+        self.stack.push(index);
+    }
+
+    /// Visit statements with the current block marked conditional (3.14).
+    fn conditional<T>(&mut self, visit: impl FnOnce(&mut Self) -> Result<T, CompileError>) -> Result<T, CompileError> {
+        if self.version < Version::Py314 {
+            return visit(self);
+        }
+        let saved = std::mem::replace(&mut self.cur().in_conditional_block, true);
+        let result = visit(self);
+        self.cur().in_conditional_block = saved;
+        result
     }
 
     fn exit_block(&mut self) {
@@ -388,29 +459,48 @@ impl Builder {
 
     fn type_params(&mut self, params: &[TypeParam]) -> Check {
         for param in params {
-            match &param.kind {
-                TypeParamKind::TypeVar { name, bound } => {
-                    self.add_def(name, DEF_TYPE_PARAM | DEF_LOCAL, param.loc)?;
-                    if let Some(bound) = bound {
-                        let in_class = self.tables[self.current()].can_see_class_scope;
-                        self.enter_block(BlockType::TypeVarBound, name, param.loc.line, false);
-                        self.cur().can_see_class_scope = in_class;
-                        if in_class {
-                            self.add_def("__classdict__", USE, bound.loc)?;
-                        }
-                        self.expr(bound)?;
-                        self.exit_block();
-                    }
+            let (name, bound, default, default_info) = match &param.kind {
+                TypeParamKind::TypeVar { name, bound, default_value } => {
+                    (name, bound.as_deref(), default_value.as_deref(), "a TypeVar default")
                 }
-                TypeParamKind::TypeVarTuple { name } | TypeParamKind::ParamSpec { name } => {
-                    self.add_def(name, DEF_TYPE_PARAM | DEF_LOCAL, param.loc)?;
-                }
+                TypeParamKind::TypeVarTuple { name, default_value } => (name, None, default_value.as_deref(), "a TypeVarTuple default"),
+                TypeParamKind::ParamSpec { name, default_value } => (name, None, default_value.as_deref(), "a ParamSpec default"),
+            };
+            self.add_def(name, DEF_TYPE_PARAM | DEF_LOCAL, param.loc)?;
+            if self.version >= Version::Py313 && name.as_str() == "__classdict__" {
+                return Err(error_at(param.loc, "reserved name '__classdict__' cannot be used for type parameter".into()));
+            }
+            if let Some(bound) = bound {
+                let info = if matches!(bound.kind, ExprKind::Tuple { .. }) { "a TypeVar constraint" } else { "a TypeVar bound" };
+                self.type_variable_block(name, bound, info, param.loc)?;
+            }
+            if let Some(default) = default {
+                self.type_variable_block(name, default, default_info, param.loc)?;
             }
         }
         Ok(())
     }
 
+    /// The scope evaluating a TypeVar bound or a type parameter default.
+    fn type_variable_block(&mut self, name: &str, value: &Expr, info: &'static str, param_loc: Loc) -> Check {
+        let in_class = self.tables[self.current()].can_see_class_scope;
+        // 3.13 records the block at the expression, 3.12 at the parameter.
+        let lineno = if self.version >= Version::Py313 { value.loc.line } else { param_loc.line };
+        self.enter_block(BlockType::TypeVarBound, name, lineno, false);
+        self.cur().can_see_class_scope = in_class;
+        self.cur().scope_info = Some(info);
+        if in_class {
+            self.add_def("__classdict__", USE, value.loc)?;
+        }
+        self.expr(value)?;
+        self.exit_block();
+        Ok(())
+    }
+
     fn annotation(&mut self, annotation: &Expr) -> Check {
+        if self.version >= Version::Py314 {
+            return self.lazy_annotation(annotation);
+        }
         if self.future_annotations {
             self.enter_block(BlockType::Annotation, "_annotation", annotation.loc.line, true);
         }
@@ -421,7 +511,66 @@ impl Builder {
         Ok(())
     }
 
+    /// 3.14 (PEP 649): an annotated assignment's annotation is evaluated
+    /// in the body's shared `__annotate__` block.
+    fn lazy_annotation(&mut self, annotation: &Expr) -> Check {
+        let parent = self.current();
+        let parent_block = self.tables[parent].block;
+        let is_unevaluated = parent_block == BlockType::Function;
+        let conditional = (parent_block == BlockType::Class && self.tables[parent].in_conditional_block) || parent_block == BlockType::Module;
+        if conditional && !self.tables[parent].has_conditional_annotations {
+            self.tables[parent].has_conditional_annotations = true;
+            self.add_def("__conditional_annotations__", USE, annotation.loc)?;
+        }
+        match self.tables[parent].annotation_block {
+            Some(existing) => self.enter_existing_block(existing),
+            None => {
+                self.enter_block(BlockType::Annotation, "__annotate__", annotation.loc.line, true);
+                let block = self.current();
+                self.tables[parent].annotation_block = Some(block);
+                if parent_block == BlockType::Class && !self.future_annotations {
+                    self.cur().can_see_class_scope = true;
+                    self.add_def("__classdict__", USE, annotation.loc)?;
+                }
+            }
+        }
+        if is_unevaluated {
+            self.cur().in_unevaluated_annotation = true;
+        }
+        let result = self.expr(annotation);
+        if is_unevaluated {
+            self.cur().in_unevaluated_annotation = false;
+        }
+        self.exit_block();
+        result
+    }
+
     fn annotations(&mut self, statement_loc: Loc, arguments: &Arguments, returns: &Option<Box<Expr>>) -> Check {
+        if self.version >= Version::Py314 {
+            // PEP 649: every function gets an `__annotate__` block.
+            let is_in_class = self.tables[self.current()].can_see_class_scope;
+            let current_is_class = self.tables[self.current()].block == BlockType::Class;
+            self.enter_block(BlockType::Annotation, "__annotate__", statement_loc.line, true);
+            if is_in_class || current_is_class {
+                self.cur().can_see_class_scope = true;
+                self.add_def("__classdict__", USE, statement_loc)?;
+            }
+            for arg in arguments.posonlyargs.iter().chain(&arguments.args) {
+                self.maybe_expr(&arg.annotation)?;
+            }
+            if let Some(vararg) = &arguments.vararg {
+                self.maybe_expr(&vararg.annotation)?;
+            }
+            if let Some(kwarg) = &arguments.kwarg {
+                self.maybe_expr(&kwarg.annotation)?;
+            }
+            for arg in &arguments.kwonlyargs {
+                self.maybe_expr(&arg.annotation)?;
+            }
+            self.maybe_expr(returns)?;
+            self.exit_block();
+            return Ok(());
+        }
         if self.future_annotations {
             self.enter_block(BlockType::Annotation, "_annotation", statement_loc.line, true);
         }
@@ -613,21 +762,25 @@ impl Builder {
             StmtKind::For { target, iter, body, orelse, .. } | StmtKind::AsyncFor { target, iter, body, orelse, .. } => {
                 self.expr(target)?;
                 self.expr(iter)?;
-                self.statements(body)?;
-                self.statements(orelse)
+                self.conditional(|this| {
+                    this.statements(body)?;
+                    this.statements(orelse)
+                })
             }
             StmtKind::While { test, body, orelse } | StmtKind::If { test, body, orelse } => {
                 self.expr(test)?;
-                self.statements(body)?;
-                self.statements(orelse)
+                self.conditional(|this| {
+                    this.statements(body)?;
+                    this.statements(orelse)
+                })
             }
-            StmtKind::With { items, body, .. } | StmtKind::AsyncWith { items, body, .. } => {
-                items.iter().try_for_each(|item| self.with_item(item))?;
-                self.statements(body)
-            }
+            StmtKind::With { items, body, .. } | StmtKind::AsyncWith { items, body, .. } => self.conditional(|this| {
+                items.iter().try_for_each(|item| this.with_item(item))?;
+                this.statements(body)
+            }),
             StmtKind::Match { subject, cases } => {
                 self.expr(subject)?;
-                cases.iter().try_for_each(|case| self.match_case(case))
+                self.conditional(|this| cases.iter().try_for_each(|case| this.match_case(case)))
             }
             StmtKind::Raise { exc, cause } => {
                 if let Some(exc) = exc {
@@ -637,10 +790,18 @@ impl Builder {
                 Ok(())
             }
             StmtKind::Try { body, handlers, orelse, finalbody } | StmtKind::TryStar { body, handlers, orelse, finalbody } => {
-                self.statements(body)?;
-                self.statements(orelse)?;
-                handlers.iter().try_for_each(|handler| self.handler(handler))?;
-                self.statements(finalbody)
+                self.conditional(|this| {
+                    this.statements(body)?;
+                    // 3.13 visits the handlers before the else block.
+                    if this.version >= Version::Py313 {
+                        handlers.iter().try_for_each(|handler| this.handler(handler))?;
+                        this.statements(orelse)?;
+                    } else {
+                        this.statements(orelse)?;
+                        handlers.iter().try_for_each(|handler| this.handler(handler))?;
+                    }
+                    this.statements(finalbody)
+                })
             }
             StmtKind::Assert { test, msg } => {
                 self.expr(test)?;
@@ -728,6 +889,9 @@ impl Builder {
     fn check_annotation_block(&self, what: &str, loc: Loc) -> Check {
         let message = match self.tables[self.current()].block {
             BlockType::Annotation => format!("{what} cannot be used within an annotation"),
+            BlockType::TypeVarBound if self.version >= Version::Py313 => {
+                format!("{what} cannot be used within {}", self.tables[self.current()].scope_info.unwrap_or("a TypeVar bound"))
+            }
             BlockType::TypeVarBound => format!("{what} cannot be used within a TypeVar bound"),
             BlockType::TypeAlias => format!("{what} cannot be used within a type alias"),
             BlockType::TypeParam => format!("{what} cannot be used within the definition of a generic"),
@@ -813,7 +977,11 @@ impl Builder {
                 self.expr(value)?;
                 self.maybe_expr(format_spec)
             }
-            ExprKind::JoinedStr { values } => self.exprs(values),
+            ExprKind::JoinedStr { values } | ExprKind::TemplateStr { values } => self.exprs(values),
+            ExprKind::Interpolation { value, format_spec, .. } => {
+                self.expr(value)?;
+                self.maybe_expr(format_spec)
+            }
             ExprKind::Constant { .. } => Ok(()),
             ExprKind::Attribute { value, .. } | ExprKind::Starred { value, .. } => self.expr(value),
             ExprKind::Subscript { value, slice, .. } => {
@@ -826,10 +994,13 @@ impl Builder {
                 self.maybe_expr(step)
             }
             ExprKind::Name { id, ctx } => {
+                if self.tables[self.current()].in_unevaluated_annotation {
+                    return Ok(());
+                }
                 let load = *ctx == ExprContext::Load;
                 self.add_def(id, if load { USE } else { DEF_LOCAL }, loc)?;
                 // `super` counts as a use of __class__.
-                if load && self.tables[self.current()].block.is_function_like() && &**id == "super" {
+                if load && self.tables[self.current()].function_like && &**id == "super" {
                     self.add_def("__class__", USE, loc)?;
                 }
                 Ok(())
@@ -1059,8 +1230,14 @@ fn inline_comprehension(
     scopes: &mut Vec<u32>,
     comp_free: &mut NameSet,
     inlined_cells: &mut NameSet,
+    version: Version,
 ) {
-    let mut remove_dunder_class = false;
+    // Names never free through a class scope: 3.12 only __class__, 3.13
+    // also __classdict__ and __conditional_annotations__.
+    let class_special = |name: &str| {
+        name == "__class__" || (version >= Version::Py313 && matches!(name, "__classdict__" | "__conditional_annotations__"))
+    };
+    let mut removed_special: Vec<SmallStr> = Vec::new();
     for at in 0..tables[comp].names.len() {
         let comp_flags = tables[comp].flags[at];
         if comp_flags & DEF_PARAM != 0 {
@@ -1074,11 +1251,14 @@ fn inline_comprehension(
         }
         match tables[table].position(name.as_str()) {
             None => {
-                if scope == FREE && tables[table].block == BlockType::Class && name.as_str() == "__class__" {
+                if scope == FREE && tables[table].block == BlockType::Class && class_special(name.as_str()) {
                     scope = GLOBAL_IMPLICIT;
                     only_flags &= !DEF_FREE;
-                    comp_free.remove(&name);
-                    remove_dunder_class = true;
+                    // 3.14 keeps the name free when a child scope needs it.
+                    if version < Version::Py314 || !is_free_in_any_child(tables, comp, &name) {
+                        comp_free.remove(&name);
+                    }
+                    removed_special.push(name.clone());
                 }
                 tables[table].set(&name, only_flags);
                 scopes.push(scope);
@@ -1092,8 +1272,8 @@ fn inline_comprehension(
         }
     }
     tables[comp].free = !comp_free.is_empty();
-    if remove_dunder_class {
-        tables[comp].remove("__class__");
+    for name in removed_special {
+        tables[comp].remove(name.as_str());
     }
 }
 
@@ -1131,9 +1311,10 @@ fn analyze_block(
     global: &NameSet,
     type_params: &NameSet,
     class_entry: Option<usize>,
+    version: Version,
 ) -> Check {
     let block = tables[table].block;
-    let function_like = block.is_function_like();
+    let function_like = tables[table].function_like;
     let mut local = NameSet::default();
     let mut new_global = NameSet::default();
     let mut new_free = NameSet::default();
@@ -1185,6 +1366,9 @@ fn analyze_block(
     } else {
         new_bound.insert("__class__".into());
         new_bound.insert("__classdict__".into());
+        if version >= Version::Py314 {
+            new_bound.insert("__conditional_annotations__".into());
+        }
     }
     let mut any_inlined = false;
     for position in 0..tables[table].children.len() {
@@ -1200,9 +1384,9 @@ fn analyze_block(
         };
         let inline = tables[child].comprehension.is_some() && tables[child].comprehension != Some(ComprehensionKind::Generator);
         let mut child_free = new_free.clone();
-        analyze_block(tables, child, Some(&new_bound), &mut child_free, &new_global, &type_params_copy, new_class_entry)?;
+        analyze_block(tables, child, Some(&new_bound), &mut child_free, &new_global, &type_params_copy, new_class_entry, version)?;
         if inline {
-            inline_comprehension(tables, table, child, &mut scopes, &mut child_free, &mut inlined_cells);
+            inline_comprehension(tables, table, child, &mut scopes, &mut child_free, &mut inlined_cells, version);
             tables[child].comp_inlined = true;
             any_inlined = true;
         }
@@ -1237,6 +1421,9 @@ fn analyze_block(
     } else if block == BlockType::Class {
         new_free.remove("__class__");
         new_free.remove("__classdict__");
+        if version >= Version::Py314 && new_free.remove("__conditional_annotations__") {
+            tables[table].has_conditional_annotations = true;
+        }
     }
     let class_flag = block == BlockType::Class || tables[table].can_see_class_scope;
     update_symbols(&mut tables[table], &scopes, &bound, &new_free, &inlined_cells, class_flag);
@@ -1289,7 +1476,7 @@ pub fn dump(symbols: &SymbolTable) -> String {
 
 fn dump_table(symbols: &SymbolTable, table: usize, depth: usize, entries: &mut Vec<String>) {
     let entry = &symbols.tables[table];
-    entries.push(format!("{depth} {} {} {}", entry.block.name(), entry.name, entry.lineno));
+    entries.push(format!("{depth} {} {} {}", entry.block.name_for(symbols.version), entry.name, entry.lineno));
     let mut names: Vec<(&str, u32)> = entry.symbols().collect();
     names.sort_by(|left, right| left.0.cmp(right.0));
     for (name, flags) in names {

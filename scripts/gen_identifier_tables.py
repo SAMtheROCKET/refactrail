@@ -1,9 +1,10 @@
 """Generate the identifier tables the Rust lexer needs from CPython's data.
 
-Usage: python3.12 scripts/gen_identifier_tables.py OUTPUT_FILE
+Usage: python3.X scripts/gen_identifier_tables.py OUTPUT_FILE
 
-Writes one Rust module (crates/lexer/src/identifier_tables.rs) with
-inclusive non-ASCII code point ranges:
+Run once per supported Python (3.12, 3.13, 3.14); each run writes one Rust
+module (crates/lexer/src/identifier_tables_3X.rs) from that interpreter's
+Unicode data, with inclusive non-ASCII code point ranges:
     XID_START       characters str.isidentifier() accepts first.
     XID_CONTINUE    characters it accepts after the first.
     NONPRINTABLE    characters str.isprintable() rejects.
@@ -53,10 +54,10 @@ def render_ranges_str(name_str: str, ranges_list: list) -> str:
 
 def main() -> None:
     """Write the generated module to the path given on the command line."""
-    if unicodedata.unidata_version != "15.0.0":
-        raise SystemExit("Run with CPython 3.12 (Unicode 15.0.0)")
+    version_str = f"{sys.version_info.major}.{sys.version_info.minor}"
     text_str = (
-        "//! Identifier tables generated from CPython 3.12 (Unicode 15.0) by\n"
+        f"//! Identifier tables generated from CPython {version_str} "
+        f"(Unicode {unicodedata.unidata_version}) by\n"
         "//! scripts/gen_identifier_tables.py. Do not edit by hand.\n\n"
         + render_ranges_str("XID_START", collect_ranges_list(
             str.isidentifier)) + "\n"
