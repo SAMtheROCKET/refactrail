@@ -86,11 +86,23 @@ def symtable_str(text_str: str) -> str:
 
 
 def rust_str(text_str: str) -> str:
-    """A Rust raw string literal for the text."""
-    hashes_str = "#"
-    while f'"{hashes_str}' in text_str:
-        hashes_str += "#"
-    return f'r{hashes_str}"{text_str}"{hashes_str}'
+    """A one-line Rust string literal for the text (escaped, so the test
+    files are the same whatever line endings a checkout uses)."""
+    parts_list = []
+    for char_str in text_str:
+        if char_str in '\\"':
+            parts_list.append("\\" + char_str)
+        elif char_str == "\n":
+            parts_list.append("\\n")
+        elif char_str == "\r":
+            parts_list.append("\\r")
+        elif char_str == "\t":
+            parts_list.append("\\t")
+        elif ord(char_str) < 0x20 or ord(char_str) == 0x7F:
+            parts_list.append(f"\\u{{{ord(char_str):x}}}")
+        else:
+            parts_list.append(char_str)
+    return '"' + "".join(parts_list) + '"'
 
 
 def main() -> None:
