@@ -113,10 +113,16 @@ fn compat_findings(
     use crate::walk::Visitor;
     let mut out = Vec::new();
     let any_enabled = |codes: &[&str]| codes.iter().any(|code| settings.is_enabled(code));
-    if any_enabled(&["E701", "E702", "E703"]) {
-        if let Ok(tokens) = refactrail_lexer::tokenize(text) {
-            crate::compat_pycodestyle::check_statement_tokens(&tokens, text, tree, source, &mut out);
-        }
+    let needs_tokens = any_enabled(&["E701", "E702", "E703", "F541"]);
+    let tokens = if needs_tokens { refactrail_lexer::tokenize(text).unwrap_or_default() } else { Vec::new() };
+    if any_enabled(&["E701", "E702", "E703"]) && !tokens.is_empty() {
+        crate::compat_pycodestyle::check_statement_tokens(&tokens, text, tree, source, &mut out);
+    }
+    if any_enabled(&[
+        "F501", "F502", "F503", "F504", "F505", "F506", "F507", "F508", "F509", "F521", "F522", "F523", "F524", "F525", "F541", "F601", "F602",
+        "F631", "F632", "F633", "F634", "F722", "F901",
+    ]) {
+        out.extend(crate::compat_pyflakes::check_module(tree, source, &tokens));
     }
     if settings.is_enabled("E402") {
         crate::compat_pycodestyle::check_import_position(tree, source, &mut out);

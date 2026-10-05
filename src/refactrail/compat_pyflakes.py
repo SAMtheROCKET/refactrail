@@ -119,7 +119,7 @@ def check_repeated_keys_none(context_info: RuleContext,
                              f"Dictionary key {key.id!r} repeated.")
         elif isinstance(key, (ast.Constant, ast.Tuple, ast.JoinedStr)):
             report_node_none(context_info, key, "F601",
-                             f"Dictionary key {ast.unparse(key)} repeated.")
+                             "Dictionary key literal repeated.")
 
 
 def check_starred_targets_none(context_info: RuleContext,

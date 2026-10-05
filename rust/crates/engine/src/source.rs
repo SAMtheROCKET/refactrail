@@ -113,6 +113,12 @@ impl<'a> SourceFile<'a> {
         SourceFile { text, lines, line_starts, noqa }
     }
 
+    /// The byte offset of a tree location's (line, UTF-8 column).
+    pub fn byte_offset(&self, line: u32, col: u32) -> usize {
+        let start = self.line_starts.get((line as usize).saturating_sub(1)).copied().unwrap_or(self.text.len());
+        (start + col as usize).min(self.text.len())
+    }
+
     /// 1-based line and 1-based character column of a byte offset.
     pub fn locate(&self, offset: usize) -> (usize, usize) {
         let line_index = match self.line_starts.binary_search(&offset) {
