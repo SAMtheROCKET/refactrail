@@ -72,3 +72,21 @@ jobs:
           "$PY" -c "import json; codes = {row['code'] for row in json.load(open('lint.json'))}; print(codes); assert codes"
           "$PY" -m refactrail format sample.py --diff > /dev/null || true
           "$PY" -m funcloom check sample.py --format json > /dev/null || [ $? -eq 1 ]
+      - name: Newer syntax is not reported as an error
+        shell: bash
+        run: |
+          "$PY" - <<'EOF'
+          import pathlib, sys
+          sources = []
+          if sys.version_info >= (3, 13):
+              sources.append("def first[T = int](items: list[T]) -> T:\n    return items[0]\n")
+          if sys.version_info >= (3, 14):
+              sources.append('name = "x"\nmessage = t"hello {name}"\n')
+              sources.append("try:\n    pass\nexcept ValueError, TypeError:\n    pass\n")
+          for index, source in enumerate(sources):
+              pathlib.Path(f"new_{index}.py").write_text(source)
+          print(len(sources), "new-syntax files")
+          EOF
+          if ls new_*.py > /dev/null 2>&1; then
+            "$PY" -m refactrail check new_*.py --select RT001 --no-cache
+          fi
