@@ -35,6 +35,37 @@ def add_general_commands_none(
     Warnings:
         Format is read-only unless the user supplies --write.
     """
+    add_lint_parser_none(commands_info)
+    format_parser = commands_info.add_parser(
+        "format", help="Preview independent whitespace formatting")
+    format_parser.add_argument("paths", nargs="*", default=["."])
+    format_parser.add_argument("--line-length", type=int)
+    format_parser.add_argument("--notebooks", action="store_true")
+    format_parser.add_argument("--bracket-style", default="own-line",
+                               choices=("own-line", "hug"))
+    mode_group = format_parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--write", action="store_true")
+    mode_group.add_argument("--check", action="store_true")
+    mode_group.add_argument("--diff", action="store_true")
+    format_parser.add_argument("--output-format", default="text",
+                               choices=("text", "json"))
+    format_parser.add_argument("--engine", default="auto",
+                               choices=ENGINES_TUPLE,
+                               help="auto uses Rust when installed")
+
+
+def add_lint_parser_none(
+    commands_info: argparse._SubParsersAction,
+) -> None:
+    """Register the lint command and its options.
+
+    Args:
+        commands_info (argparse._SubParsersAction): Parent command registry.
+    Returns:
+        None: Adds the lint command.
+    Warnings:
+        --fix and --diff are mutually exclusive.
+    """
     lint_parser = commands_info.add_parser("lint", help="General correctness")
     lint_parser.add_argument("paths", nargs="*", default=["."])
     lint_parser.add_argument("--select", default="RC")
@@ -52,22 +83,6 @@ def add_general_commands_none(
                                 " E713, E714), then report what remains")
     fix_group.add_argument("--diff", action="store_true",
                            help="show the safe fixes; change nothing")
-    format_parser = commands_info.add_parser(
-        "format", help="Preview independent whitespace formatting")
-    format_parser.add_argument("paths", nargs="*", default=["."])
-    format_parser.add_argument("--line-length", type=int)
-    format_parser.add_argument("--notebooks", action="store_true")
-    format_parser.add_argument("--bracket-style", default="own-line",
-                               choices=("own-line", "hug"))
-    mode_group = format_parser.add_mutually_exclusive_group()
-    mode_group.add_argument("--write", action="store_true")
-    mode_group.add_argument("--check", action="store_true")
-    mode_group.add_argument("--diff", action="store_true")
-    format_parser.add_argument("--output-format", default="text",
-                               choices=("text", "json"))
-    format_parser.add_argument("--engine", default="auto",
-                               choices=ENGINES_TUPLE,
-                               help="auto uses Rust when installed")
 
 
 def discover_general_files_list(paths_list: list[str],
@@ -107,10 +122,8 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
         This first RC implementation uses the independent Python engine.
     """
     files_list = discover_general_files_list(arguments.paths)
-    select_tuple = tuple(code_str.strip().upper() for code_str
-                         in arguments.select.split(",") if code_str.strip())
-    ignore_tuple = tuple(code_str.strip().upper() for code_str
-                         in arguments.ignore.split(",") if code_str.strip())
+    select_tuple = split_lint_codes_tuple(arguments.select)
+    ignore_tuple = split_lint_codes_tuple(arguments.ignore)
     cache_path = None if arguments.no_cache else (
         Path.cwd() / ".refactrail_cache" / "correctness-v4.json")
     engine_str = resolve_engine_str(arguments.engine, "lint_files")
@@ -132,14 +145,43 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
     findings_list = check_correctness_paths_list(
         files_list, select_tuple, ignore_tuple, arguments.jobs, cache_path,
         engine_str)
-    if arguments.output_format == "sarif":
-        output_str = render_sarif_str(findings_list)
-    elif arguments.output_format == "json":
-        output_str = render_json_str(findings_list)
-    else:
-        output_str = render_text_str(findings_list, len(files_list))
-    sys.stdout.write(output_str)
+    sys.stdout.write(render_lint_str(findings_list, len(files_list),
+                                     arguments.output_format))
     return int(bool(findings_list))
+
+
+def split_lint_codes_tuple(codes_str: str) -> tuple[str, ...]:
+    """Turn "rc,E7" into ("RC", "E7").
+
+    Args:
+        codes_str (str): Comma-separated codes.
+    Returns:
+        tuple[str, ...]: Upper-case codes, blanks dropped.
+    Warnings:
+        None.
+    """
+    return tuple(code_str.strip().upper() for code_str
+                 in codes_str.split(",") if code_str.strip())
+
+
+def render_lint_str(findings_list: list, file_count_int: int,
+                    format_str: str) -> str:
+    """Render lint findings as text, JSON or SARIF.
+
+    Args:
+        findings_list (list): Sorted findings.
+        file_count_int (int): Number of files checked (text summary).
+        format_str (str): "text", "json" or "sarif".
+    Returns:
+        str: The report.
+    Warnings:
+        None.
+    """
+    if format_str == "sarif":
+        return render_sarif_str(findings_list)
+    if format_str == "json":
+        return render_json_str(findings_list)
+    return render_text_str(findings_list, file_count_int)
 
 
 def run_lint_fixes_bool(known_dict: dict[str, list],
@@ -160,32 +202,50 @@ def run_lint_fixes_bool(known_dict: dict[str, list],
         Files are changed in place unless diff_bool is set; each file
         is verified before it is written.
     """
-    changed_int = 0
-    for path_str, findings_list in sorted(known_dict.items()):
-        if not any(finding.code in FIXABLE_CODES_TUPLE
-                   for finding in findings_list):
-            continue
-        fixer = functools.partial(fix_compat_text, select_tuple=select_tuple,
-                                  ignore_tuple=ignore_tuple,
-                                  known_list=findings_list)
-        file_fix = fix_file(path_str, Settings(), fixer)
-        if file_fix.skip_reason:
-            continue
-        for note_str in file_fix.outcome.notes:
-            sys.stderr.write(f"{path_str}: note: {note_str}\n")
-        if not file_fix.changed_bool:
-            continue
-        changed_int += 1
-        if diff_bool:
-            sys.stdout.write(render_diff_str(file_fix))
-        else:
-            write_fix_none(file_fix)
-            sys.stderr.write("".join(
-                f"{path_str}: fixed {line_str}\n"
-                for line_str in file_fix.outcome.applied))
+    changed_int = sum(
+        fix_lint_file_bool(path_str, findings_list, select_tuple,
+                           ignore_tuple, diff_bool)
+        for path_str, findings_list in sorted(known_dict.items())
+        if any(finding.code in FIXABLE_CODES_TUPLE
+               for finding in findings_list))
     verb_str = "would be fixed" if diff_bool else "fixed"
     sys.stderr.write(f"{changed_int} file(s) {verb_str}.\n")
     return bool(changed_int)
+
+
+def fix_lint_file_bool(path_str: str, findings_list: list,
+                       select_tuple: tuple[str, ...],
+                       ignore_tuple: tuple[str, ...], diff_bool: bool) -> bool:
+    """Apply (or show) the safe fixes of one file.
+
+    Args:
+        path_str (str): The file.
+        findings_list (list): Its findings from the batch lint.
+        select_tuple (tuple[str, ...]): Selected code prefixes.
+        ignore_tuple (tuple[str, ...]): Ignored code prefixes.
+        diff_bool (bool): Show a diff instead of writing.
+    Returns:
+        bool: True when the file has (or had) fixes.
+    Warnings:
+        The file is changed in place unless diff_bool is set.
+    """
+    fixer = functools.partial(fix_compat_text, select_tuple=select_tuple,
+                              ignore_tuple=ignore_tuple,
+                              known_list=findings_list)
+    file_fix = fix_file(path_str, Settings(), fixer)
+    if file_fix.skip_reason:
+        return False
+    for note_str in file_fix.outcome.notes:
+        sys.stderr.write(f"{path_str}: note: {note_str}\n")
+    if not file_fix.changed_bool:
+        return False
+    if diff_bool:
+        sys.stdout.write(render_diff_str(file_fix))
+    else:
+        write_fix_none(file_fix)
+        sys.stderr.write("".join(f"{path_str}: fixed {line_str}\n"
+                                 for line_str in file_fix.outcome.applied))
+    return True
 
 
 def render_format_diff_str(plan_info: FormatPlan) -> str:

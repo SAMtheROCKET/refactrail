@@ -133,15 +133,34 @@ def parse_spec_int(format_str: str, index_int: int,
         raise ValueError("incomplete format")
     if format_str[index_int] not in PERCENT_CONVERSIONS_STR:
         raise LookupError(format_str[index_int])
+    record_placeholder_none(summary_info, key_str,
+                            (is_star_width_bool, is_star_precision_bool))
+    return index_int + 1
+
+
+def record_placeholder_none(summary_info: PercentSummary,
+                            key_str: str | None,
+                            stars_tuple: tuple[bool, bool]) -> None:
+    """Count one placeholder's key or position and its * arguments.
+
+    Args:
+        summary_info (PercentSummary): Updated in place.
+        key_str (str | None): The mapping key, or None for positional.
+        stars_tuple (tuple[bool, bool]): Whether width and precision
+            are given as *.
+    Returns:
+        None: Updates the summary.
+    Warnings:
+        Each * consumes one positional argument.
+    """
     if key_str is None:
         summary_info.positional_int += 1
     else:
         summary_info.keys_set.add(key_str)
-    for is_star_bool in (is_star_width_bool, is_star_precision_bool):
+    for is_star_bool in stars_tuple:
         if is_star_bool:
             summary_info.positional_int += 1
             summary_info.is_starred = True
-    return index_int + 1
 
 
 def summarise_percent_info(format_str: str) -> PercentSummary:
@@ -419,6 +438,26 @@ def check_format_arguments_none(context_info: RuleContext, node: ast.Call,
                            "'...'.format(...) has unused positional "
                            "argument(s): "
                            f"{', '.join(map(str, extra_positional_list))}.")
+    report_missing_arguments_none(context_info, node, summary_info,
+                                  used_set)
+
+
+def report_missing_arguments_none(context_info: RuleContext,
+                                  node: ast.Call,
+                                  summary_info: FormatSummary,
+                                  used_set: set[int]) -> None:
+    """F524: placeholders that no format() argument fills.
+
+    Args:
+        context_info (RuleContext): Findings.
+        node (ast.Call): The format() call.
+        summary_info (FormatSummary): The string's placeholders.
+        used_set (set[int]): Positional indices the string uses.
+    Returns:
+        None: Adds a finding.
+    Warnings:
+        Not judged when *args or **kwargs are passed.
+    """
     if any(isinstance(argument, ast.Starred) for argument in node.args) or (
             any(keyword.arg is None for keyword in node.keywords)):
         return

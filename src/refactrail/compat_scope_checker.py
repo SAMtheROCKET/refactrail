@@ -77,6 +77,18 @@ class ScopeChecker:
         self.loaded_names_set = {node.id for node in ast.walk(tree)
                                  if isinstance(node, ast.Name)
                                  and isinstance(node.ctx, ast.Load)}
+        self.declare_globals_none(tree)
+
+    def declare_globals_none(self, tree: ast.Module) -> None:
+        """Bind every name a `global` statement declares at module level.
+
+        Args:
+            tree (ast.Module): Parsed module.
+        Returns:
+            None: Adds used declaration bindings to the module scope.
+        Warnings:
+            Existing module bindings are kept.
+        """
         for node in ast.walk(tree):
             if isinstance(node, ast.Global):
                 for name_str in node.names:
@@ -278,17 +290,8 @@ class ScopeChecker:
         name_str = node.id
         if name_str == "locals":
             self.scope.uses_locals = True
-        scope = self.scope
-        if scope.kind == FUNCTION_SCOPE_STR and name_str in (
-                scope.local_names_set) and name_str not in (
-                scope.bindings_dict) and name_str not in scope.globals_set \
-                and name_str not in scope.nonlocal_dict:
-            outer = self.find_binding_info(name_str)
-            if outer is not None:
-                self.report("F823", node,
-                            f"Local variable `{name_str}` referenced before "
-                            "assignment.")
-                return
+        if self.report_read_before_assignment_bool(node):
+            return
         binding = self.find_binding_info(name_str)
         if binding is not None:
             mark_used_none(binding)
@@ -309,6 +312,29 @@ class ScopeChecker:
                for names_set in self.handled_names_list):
             return
         self.report("F821", node, f"Undefined name `{name_str}`.")
+
+    def report_read_before_assignment_bool(self, node: ast.Name) -> bool:
+        """F823: a local name read before the function assigns it.
+
+        Args:
+            node (ast.Name): Load-context name.
+        Returns:
+            bool: True when F823 was reported (the name is assigned
+                later in this function and also bound outside it).
+        Warnings:
+            None.
+        """
+        name_str, scope = node.id, self.scope
+        if scope.kind == FUNCTION_SCOPE_STR and name_str in (
+                scope.local_names_set) and name_str not in (
+                scope.bindings_dict) and name_str not in scope.globals_set \
+                and name_str not in scope.nonlocal_dict and (
+                self.find_binding_info(name_str) is not None):
+            self.report("F823", node,
+                        f"Local variable `{name_str}` referenced before "
+                        "assignment.")
+            return True
+        return False
 
     def is_in_class_method_bool(self) -> bool:
         """Whether the current function is nested in a class.
@@ -1321,19 +1347,16 @@ def locate_report_tuple(context_info: RuleContext,
     return line_int, column_int
 
 
-def check_scope_codes_none(context_info: RuleContext) -> None:
-    """Run the scope checker when any scope code is selected.
+def build_scope_reporter(context_info: RuleContext) -> Callable[..., None]:
+    """The report callback the scope checker uses for one file.
 
     Args:
         context_info (RuleContext): Parsed file, settings and findings.
     Returns:
-        None: Adds F4xx, F8xx scope findings.
+        Callable[..., None]: report(code, node, message, parent=None).
     Warnings:
-        Files nested beyond the interpreter's recursion limit are skipped.
+        None.
     """
-    if not any(context_info.is_enabled_bool(code_str)
-               for code_str in SCOPE_CODES_TUPLE):
-        return
 
     def report_finding_none(code_str: str, node: ast.AST, message_str: str,
                             parent: ast.AST | None = None) -> None:
@@ -1354,6 +1377,23 @@ def check_scope_codes_none(context_info: RuleContext) -> None:
             code_str, locate_report_tuple(context_info, node), message_str,
             parent.lineno if parent is not None else 0)
 
+    return report_finding_none
+
+
+def check_scope_codes_none(context_info: RuleContext) -> None:
+    """Run the scope checker when any scope code is selected.
+
+    Args:
+        context_info (RuleContext): Parsed file, settings and findings.
+    Returns:
+        None: Adds F4xx, F8xx scope findings.
+    Warnings:
+        Files nested beyond the interpreter's recursion limit are skipped.
+    """
+    if not any(context_info.is_enabled_bool(code_str)
+               for code_str in SCOPE_CODES_TUPLE):
+        return
+    report_finding_none = build_scope_reporter(context_info)
     is_init_bool = Path(context_info.source_info.path).name == "__init__.py"
     limit_int = sys.getrecursionlimit()
     sys.setrecursionlimit(max(limit_int, 20000))

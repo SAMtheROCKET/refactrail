@@ -110,6 +110,33 @@ class ScopeCollector(ast.NodeVisitor):
             self.visit(node)
             self.annotation_bool = previous_bool
 
+    def find_type_params_table(self, node: ast.AST,
+                               parent_info: symtable.SymbolTable
+                               ) -> symtable.SymbolTable:
+        """The unused symbol table of a definition's type parameters.
+
+        Args:
+            node (ast.AST): Function, class or type alias definition.
+            parent_info (symtable.SymbolTable): The enclosing table.
+        Returns:
+            symtable.SymbolTable: The child table with the definition's
+            name and line.
+        Warnings:
+            Raises ValueError when the compiler made no such table.
+        """
+        name_str = (node.name.id if isinstance(node, ast.TypeAlias)
+                    else node.name)
+        matches_list = [child_info for child_info in parent_info.get_children()
+                        if child_info.get_name() == name_str
+                        and child_info.get_lineno() == node.lineno
+                        and child_info.get_id() not in self.used_tables_set
+                        and str(child_info.get_type())
+                        in TYPE_PARAMETER_BLOCKS_TUPLE]
+        if not matches_list:
+            raise ValueError(
+                f"Unresolved type parameter scope at line {node.lineno}")
+        return matches_list[0]
+
     def enter_type_params_bool(self, node: ast.AST) -> bool:
         """Enter the compiler scope of a definition's type parameters.
 
@@ -125,19 +152,8 @@ class ScopeCollector(ast.NodeVisitor):
         """
         if not getattr(node, "type_params", None):
             return False
-        name_str = (node.name.id if isinstance(node, ast.TypeAlias)
-                    else node.name)
         parent_info = self.stack_list[-1]
-        matches_list = [child_info for child_info in parent_info.get_children()
-                        if child_info.get_name() == name_str
-                        and child_info.get_lineno() == node.lineno
-                        and child_info.get_id() not in self.used_tables_set
-                        and str(child_info.get_type())
-                        in TYPE_PARAMETER_BLOCKS_TUPLE]
-        if not matches_list:
-            raise ValueError(
-                f"Unresolved type parameter scope at line {node.lineno}")
-        child_info = matches_list[0]
+        child_info = self.find_type_params_table(node, parent_info)
         self.used_tables_set.add(child_info.get_id())
         self.parents_dict[child_info.get_id()] = parent_info
         self.tables_dict[child_info.get_id()] = child_info

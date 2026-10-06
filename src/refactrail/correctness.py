@@ -262,7 +262,25 @@ def check_correctness_list(
     context_info = RuleContext(build_source_file(path_str, text_str),
                                tree_node, settings_info)
     run_checks_none(context_info)
-    findings_list = sorted(set(context_info.findings_list))
+    return merge_compile_error_list(sorted(set(context_info.findings_list)),
+                                    path_str, compile_error)
+
+
+def merge_compile_error_list(findings_list: list[Finding], path_str: str,
+                             compile_error: Exception | None
+                             ) -> list[Finding]:
+    """Keep RT001 unless its compile error is reported as an F code.
+
+    Args:
+        findings_list (list[Finding]): Sorted findings.
+        path_str (str): Source label for findings.
+        compile_error (Exception | None): The compiler's error, if any.
+    Returns:
+        list[Finding]: The findings, with RT001 first when the error is
+            not already reported under its mapped code.
+    Warnings:
+        None.
+    """
     if compile_error is not None and not any(
             finding.code == find_lint_error_code_str(compile_error)
             for finding in findings_list):

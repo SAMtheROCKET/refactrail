@@ -359,15 +359,7 @@ def edit_negated_test_list(index: SourceIndex, finding: Finding,
                                               node.comparators[0])
         if not_int < 0 or span_tuple is None:
             return []
-        close_int = find_wrapping_close_int(index, not_int + 1,
-                                            index.find_node_end_int(parent))
-        drop_int = not_int + (2 if close_int >= 0 else 1)
-        while index.tokens_list[drop_int].type == tokenize.NL:
-            drop_int += 1
-        if close_int >= 0 and index.tokens_list[drop_int].type == (
-                tokenize.COMMENT):
-            close_int, drop_int = -1, not_int + 1  # keep a comment
-        not_end_int = index.find_offset_int(*index.tokens_list[drop_int].start)
+        not_end_int, close_int = find_not_cut_tuple(index, not_int, parent)
         changes_dict[id(parent)] = ("negate", node, id(parent))
         new_str = "not in" if finding.code == "E713" else "is not"
         edits_list = [Edit(index.find_node_start_int(parent), not_end_int, "",
@@ -379,6 +371,32 @@ def edit_negated_test_list(index: SourceIndex, finding: Finding,
                                    group=id(parent)))
         return edits_list
     return []
+
+
+def find_not_cut_tuple(index: SourceIndex, not_int: int,
+                       parent: ast.AST) -> tuple[int, int]:
+    """Where the deleted `not` ends, and the bracket to drop with it.
+
+    Args:
+        index (SourceIndex): The indexed text.
+        not_int (int): Index of the `not` token.
+        parent (ast.AST): The `not` operation.
+    Returns:
+        tuple[int, int]: The offset the deletion runs to, and the offset
+            of a closing bracket to delete (or -1). A bracket that holds
+            a comment is kept.
+    Warnings:
+        None.
+    """
+    close_int = find_wrapping_close_int(index, not_int + 1,
+                                        index.find_node_end_int(parent))
+    drop_int = not_int + (2 if close_int >= 0 else 1)
+    while index.tokens_list[drop_int].type == tokenize.NL:
+        drop_int += 1
+    if close_int >= 0 and index.tokens_list[drop_int].type == (
+            tokenize.COMMENT):
+        close_int, drop_int = -1, not_int + 1  # keep a comment
+    return index.find_offset_int(*index.tokens_list[drop_int].start), close_int
 
 
 def find_wrapping_close_int(index: SourceIndex, open_int: int,
@@ -460,6 +478,24 @@ def check_own_lines_bool(index: SourceIndex, statement: ast.stmt) -> bool:
                                        or after_str.startswith("#"))
 
 
+def find_alias_at(index: SourceIndex, finding: Finding) -> ast.alias | None:
+    """The import alias a finding points into.
+
+    Args:
+        index (SourceIndex): The indexed text.
+        finding (Finding): A finding at an imported name (or its asname).
+    Returns:
+        ast.alias | None: The alias whose text contains the position.
+    Warnings:
+        None.
+    """
+    offset_int = index.find_offset_int(finding.line, finding.column - 1)
+    return next((node for node in ast.walk(index.tree)
+                 if isinstance(node, ast.alias)
+                 and index.find_node_start_int(node) <= offset_int
+                 < index.find_node_end_int(node)), None)
+
+
 def edit_imports_list(index: SourceIndex, findings_list: list[Finding],
                       parents_dict: dict, changes_dict: dict,
                       notes_list: list[str]) -> list[Edit]:
@@ -478,14 +514,8 @@ def edit_imports_list(index: SourceIndex, findings_list: list[Finding],
     """
     by_statement_dict: dict[int, tuple[ast.stmt, list, list]] = {}
     for finding in findings_list:
-        offset_int = index.find_offset_int(finding.line, finding.column - 1)
-        aliases_list = [
-            node for node in ast.walk(index.tree)
-            if isinstance(node, ast.alias)
-            and index.find_node_start_int(node) <= offset_int
-            < index.find_node_end_int(node)]
-        statement = parents_dict.get(id(aliases_list[0])) if (
-            aliases_list) else None
+        alias = find_alias_at(index, finding)
+        statement = parents_dict.get(id(alias)) if alias else None
         if statement is None or check_import_guarded_bool(statement,
                                                           parents_dict):
             notes_list.append(f"{finding.line}:{finding.column} F401 not "
@@ -493,7 +523,7 @@ def edit_imports_list(index: SourceIndex, findings_list: list[Finding],
             continue
         entry = by_statement_dict.setdefault(id(statement),
                                              (statement, [], []))
-        entry[1].append(aliases_list[0])
+        entry[1].append(alias)
         entry[2].append(finding)
     edits_list = []
     for statement, unused_list, statement_findings_list in (
@@ -502,6 +532,28 @@ def edit_imports_list(index: SourceIndex, findings_list: list[Finding],
             index, statement, unused_list, statement_findings_list,
             parents_dict, changes_dict, notes_list))
     return edits_list
+
+
+def find_run_span_tuple(index: SourceIndex, names_list: list,
+                        first_int: int, last_int: int) -> tuple[int, int]:
+    """The text to cut for a run of unused names.
+
+    Args:
+        index (SourceIndex): The indexed text.
+        names_list (list): The statement's aliases.
+        first_int (int): Index of the run's first alias.
+        last_int (int): Index of the run's last alias.
+    Returns:
+        tuple[int, int]: Up to the next kept name, or for a final run
+            from the end of the last kept name.
+    Warnings:
+        None.
+    """
+    if last_int + 1 < len(names_list):
+        return (index.find_node_start_int(names_list[first_int]),
+                index.find_node_start_int(names_list[last_int + 1]))
+    return (index.find_node_end_int(names_list[first_int - 1]),
+            index.find_node_end_int(names_list[last_int]))
 
 
 def edit_alias_runs_list(index: SourceIndex, statement: ast.stmt,
@@ -534,19 +586,14 @@ def edit_alias_runs_list(index: SourceIndex, statement: ast.stmt,
         while (run_end_int + 1 < len(names_list)
                and id(names_list[run_end_int + 1]) in finding_dict):
             run_end_int += 1
-        finding = finding_dict[id(names_list[index_int])]
-        if run_end_int + 1 < len(names_list):
-            start_int = index.find_node_start_int(names_list[index_int])
-            end_int = index.find_node_start_int(names_list[run_end_int + 1])
-        else:
-            start_int = index.find_node_end_int(names_list[index_int - 1])
-            end_int = index.find_node_end_int(names_list[run_end_int])
+        start_int, end_int = find_run_span_tuple(index, names_list,
+                                                 index_int, run_end_int)
         if "#" in index.text[start_int:end_int]:
             return []
-        edits_list.append(Edit(start_int, end_int, "", finding, [
-            finding_dict[id(alias)]
-            for alias in names_list[index_int + 1:run_end_int + 1]],
-            id(statement)))
+        run_findings_list = [finding_dict[id(alias)] for alias
+                             in names_list[index_int:run_end_int + 1]]
+        edits_list.append(Edit(start_int, end_int, "", run_findings_list[0],
+                               run_findings_list[1:], id(statement)))
         index_int = run_end_int + 1
     return edits_list
 
@@ -573,7 +620,6 @@ def edit_import_statement_list(index: SourceIndex, statement: ast.stmt,
     """
     kept_list = [alias for alias in statement.names
                  if all(alias is not unused for unused in unused_list)]
-    finding = findings_list[0]
     edits_list = (edit_alias_runs_list(index, statement, unused_list,
                                        findings_list) if kept_list else [])
     if kept_list and edits_list:
@@ -586,6 +632,26 @@ def edit_import_statement_list(index: SourceIndex, statement: ast.stmt,
                           "comment would be removed"
                           for open_finding in findings_list)
         return []
+    return remove_import_statement_list(index, statement, findings_list,
+                                        parents_dict, changes_dict)
+
+
+def remove_import_statement_list(index: SourceIndex, statement: ast.stmt,
+                                 findings_list: list, parents_dict: dict,
+                                 changes_dict: dict) -> list[Edit]:
+    """Delete the lines of an import statement whose names are all unused.
+
+    Args:
+        index (SourceIndex): The indexed text.
+        statement (ast.stmt): The import statement, alone on its lines.
+        findings_list (list): Its findings.
+        parents_dict (dict): id(child) -> parent.
+        changes_dict (dict): id(node) -> change, filled for verification.
+    Returns:
+        list[Edit]: One deletion of the statement's whole lines.
+    Warnings:
+        A body left empty receives `pass` later (fill_empty_bodies_none).
+    """
     parent = parents_dict[id(statement)]
     field_str = next(name_str for name_str in ("body", "orelse",
                                                "finalbody")
@@ -595,7 +661,7 @@ def edit_import_statement_list(index: SourceIndex, statement: ast.stmt,
                                    id(statement))
     line_start_int = index.starts_list[statement.lineno - 1]
     line_end_int = index.starts_list[statement.end_lineno]
-    return [Edit(line_start_int, line_end_int, "", finding,
+    return [Edit(line_start_int, line_end_int, "", findings_list[0],
                  [*findings_list[1:]], id(statement))]
 
 
@@ -867,6 +933,34 @@ def check_fixed_text_bool(index: SourceIndex, changes_dict: dict,
             == ast.dump(unify.visit(new_tree)))
 
 
+def list_passing_groups_list(index: SourceIndex, edits_list: list[Edit],
+                             changes_dict: dict, path_str: str) -> list:
+    """The edit groups that pass the tree check on their own.
+
+    Args:
+        index (SourceIndex): The indexed text.
+        edits_list (list[Edit]): The pass's edits.
+        changes_dict (dict): Their intended changes.
+        path_str (str): The file path, for compile().
+    Returns:
+        list: (edits, changes) of each passing group, in edit order.
+    Warnings:
+        None.
+    """
+    groups_dict: dict[int, list[Edit]] = {}
+    for edit in edits_list:
+        groups_dict.setdefault(edit.group_key_int(), []).append(edit)
+    passing_list = []
+    for group_int, group_edits_list in groups_dict.items():
+        changes_part_dict = {node_id: change for node_id, change
+                             in changes_dict.items() if change[2] == group_int}
+        if check_fixed_text_bool(
+                index, changes_part_dict,
+                apply_edits_str(index.text, group_edits_list), path_str):
+            passing_list.append((group_edits_list, changes_part_dict))
+    return passing_list
+
+
 def keep_verified_edits_list(index: SourceIndex, edits_list: list[Edit],
                              changes_dict: dict, path_str: str
                              ) -> list[Edit]:
@@ -888,17 +982,8 @@ def keep_verified_edits_list(index: SourceIndex, edits_list: list[Edit],
             index, changes_dict, apply_edits_str(index.text,
                                                       edits_list), path_str):
         return edits_list
-    groups_dict: dict[int, list[Edit]] = {}
-    for edit in edits_list:
-        groups_dict.setdefault(edit.group_key_int(), []).append(edit)
-    passing_list = []
-    for group_int, group_edits_list in groups_dict.items():
-        changes_part_dict = {node_id: change for node_id, change
-                             in changes_dict.items() if change[2] == group_int}
-        if check_fixed_text_bool(
-                index, changes_part_dict,
-                apply_edits_str(index.text, group_edits_list), path_str):
-            passing_list.append((group_edits_list, changes_part_dict))
+    passing_list = list_passing_groups_list(index, edits_list, changes_dict,
+                                            path_str)
     combined_list = sorted((edit for group_edits_list, _ in passing_list
                             for edit in group_edits_list),
                            key=lambda candidate_edit: (
