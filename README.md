@@ -1,5 +1,11 @@
 # RefacTrail
 
+[![CI](https://github.com/SAMtheROCKET/refactrail/actions/workflows/ci.yml/badge.svg)](https://github.com/SAMtheROCKET/refactrail/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/refactrail?include_prereleases)](https://pypi.org/project/refactrail/)
+[![Python](https://img.shields.io/pypi/pyversions/refactrail)](https://pypi.org/project/refactrail/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Website](https://img.shields.io/badge/website-refactrail-informational)](https://samtherocket.github.io/refactrail/)
+
 **The Python refactorizer.** A linter, formatter and verified refactoring
 tool with two independent engines, pure Python and Rust, built on its own
 parser. Run correctness checks and bounded formatting, or check structure,
