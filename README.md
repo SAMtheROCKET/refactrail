@@ -5,6 +5,8 @@ tool with two independent engines, pure Python and Rust, built on its own
 parser. Run correctness checks and bounded formatting, or check structure,
 naming, types and documentation against a chosen profile.
 
+Website: [samtherocket.github.io/refactrail](https://samtherocket.github.io/refactrail/)
+
 Part of a family of standalone Python tools: [FuncLoom](https://github.com/SAMtheROCKET/funcloom) (functionizer), [RefacTrail](https://github.com/SAMtheROCKET/refactrail) (refactorizer) and [FlowBlueprint](https://github.com/SAMtheROCKET/flowblueprint) (architect: script or notebook to architecture diagram). Each installs and works on its own.
 
 **Use RefacTrail to:**
