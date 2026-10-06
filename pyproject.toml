@@ -34,7 +34,7 @@ release = ["build>=1.2,<2", "setuptools>=77", "twine>=6,<7"]
 refactrail = "refactrail.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/SAMtheROCKET/refactrail"
+Homepage = "https://samtherocket.github.io/refactrail/"
 Repository = "https://github.com/SAMtheROCKET/refactrail"
 Issues = "https://github.com/SAMtheROCKET/refactrail/issues"
 
