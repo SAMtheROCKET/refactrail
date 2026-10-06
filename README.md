@@ -29,8 +29,10 @@ Built for developers, data scientists and teams that want clean,
 consistent code; pair it with FuncLoom to turn scripts and notebooks into
 functions and FlowBlueprint to draw the architecture.
 
-**0.4.0a0 is an experimental alpha, published on PyPI.** Python 3.12 or newer is
-required. RefacTrail has its own package, CLI and VS Code extension. It
+**Status: alpha.** The latest release on PyPI is 0.4.0a0 (experimental
+alpha). The main branch has newer, unreleased features (see
+[What's new on main](#whats-new-on-main-not-yet-on-pypi)). Python 3.12 or
+newer is required. RefacTrail has its own package, CLI and VS Code extension. It
 installs FuncLoom automatically for its rewrite API; FuncLoom has no
 dependency on RefacTrail. No LLM, account or network is needed at runtime.
 
@@ -55,6 +57,10 @@ refactrail check               # structure, naming, type hints, docstrings
 refactrail fix --diff          # preview safe fixes; drop --diff to apply
 ```
 
+<!-- GIF placeholder: docs/media/refactrail-lint-fix.gif
+     Terminal, about 20 s: `refactrail lint src --select E4,E7,F`, then
+     `--diff`, then `--fix`, then the clean re-run. See docs/MEDIA.md. -->
+
 Paths default to the current folder; pass files or folders to narrow it.
 Exit codes are 0 (clean), 1 (findings) and 2 (error), ready for CI. If your
 system blocks the `refactrail` command, use `python -m refactrail`.
@@ -76,6 +82,46 @@ repos:
 
 `refactrail-format-check` (fails instead of rewriting) and
 `refactrail-check` are also available.
+
+## What's new on main (not yet on PyPI)
+
+These features are on the main branch and will be in the next release.
+To try them now: `pip install "git+https://github.com/SAMtheROCKET/refactrail"`
+(the Python engine is used until a matching Rust core is released; the
+findings are the same).
+
+- **Ruff-compatible rules:** `refactrail lint --select E4,E7,F` checks
+  Ruff's default rule set (pycodestyle E4/E7/E9 and Pyflakes F codes)
+  with the same codes, so existing `# noqa` comments keep working. On a
+  6,988-file corpus 19,827 of Ruff's 19,830 findings match.
+- **Safe fixes:** `lint --fix` (or `--diff` to preview) removes unused
+  imports and fixes F541, F632, E703, E713 and E714; on the Python
+  standard library the result is byte-identical to Ruff's `--fix`.
+- **Faster native engine:** the Rust engine lints the 6,988-file corpus
+  in about 0.5 s on 24 threads with findings identical to the Python
+  engine (Ruff is still faster).
+- **Stable interfaces:** [docs/INTERFACES.md](docs/INTERFACES.md) lists
+  what stays stable through the beta; `refactrail-native rules` lists
+  the codes without Python.
+
+## Office machines and older Python
+
+RefacTrail needs Python 3.12 or newer, but your project does not: the tool
+only reads your code, so it can run on its own Python next to a project
+that stays on 3.9, 3.10 or 3.11. Neither of these needs administrator
+rights; [uv](https://docs.astral.sh/uv/) downloads its own Python 3.12
+into your user folder:
+
+```bash
+uvx --python 3.12 refactrail lint src          # one-off run
+uv tool install --python 3.12 refactrail       # or install once
+refactrail lint src --select E4,E7,F
+```
+
+`pipx install --python <path to a Python 3.12> refactrail` works the same
+way. If `pip` says `from versions: none`, your Python is older than 3.12
+or pip is pointed at a company mirror that does not carry the package
+(check with `python -m pip config list`, and ask IT to allow it).
 
 ### From source (development)
 
@@ -144,6 +190,10 @@ engines do not invoke or contain Ruff or Black. The FuncLoom
 structural-rewrite dependency remains as documented below.
 
 ## Checking and fixing
+
+<!-- GIF placeholder: docs/media/refactrail-vscode.gif
+     VS Code, about 15 s: run "RefacTrail: Check active file", hover a
+     squiggle, then "RefacTrail: Preview fixes". See docs/MEDIA.md. -->
 
 `check` reports line, function and main-block sizes; docstrings and their
 sections; missing annotations; naming conventions and verb prefixes;
