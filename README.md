@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/refactrail)](https://pypi.org/project/refactrail/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Website](https://img.shields.io/badge/website-refactrail-informational)](https://samtherocket.github.io/refactrail/)
+[![VS Code](https://img.shields.io/visual-studio-marketplace/v/samtherocket.refactrail?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=samtherocket.refactrail)
 
 **The Python refactorizer.** A linter, formatter and verified refactoring
 tool with two independent engines, pure Python and Rust, built on its own
@@ -62,8 +63,9 @@ Paths default to the current folder; pass files or folders to narrow it.
 Exit codes are 0 (clean), 1 (findings) and 2 (error), ready for CI. If your
 system blocks the `refactrail` command, use `python -m refactrail`.
 
-**In VS Code**, install the RefacTrail extension and run *RefacTrail: ...*
-from the Command Palette. It uses the Python interpreter selected in VS Code
+**In VS Code**, install the [RefacTrail extension](https://marketplace.visualstudio.com/items?itemName=samtherocket.refactrail) from
+the Marketplace (search *RefacTrail* in the Extensions view) and run
+*RefacTrail: ...* from the Command Palette. It uses the Python interpreter selected in VS Code
 and offers to install RefacTrail there with one click.
 
 **On every commit**, add the hooks to `.pre-commit-config.yaml`:
@@ -263,7 +265,7 @@ limits.
 ## Editor and release preparation
 
 [The VS Code extension](editor/refactrail/README.md) provides explicit check,
-diff-preview and fix commands. Install its local VSIX, select the Python
+diff-preview and fix commands. Install it from the Marketplace, select the Python
 environment containing these packages, and use a trusted workspace.
 
 ```powershell
