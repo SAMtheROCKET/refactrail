@@ -120,11 +120,12 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
                              "engine has no other selections")
         engine_str = "python"
     if arguments.fix or arguments.diff:
-        candidates_list = sorted({
-            finding.path for finding in check_correctness_paths_list(
+        known_dict: dict[str, list] = {}
+        for finding in check_correctness_paths_list(
                 files_list, select_tuple, ignore_tuple, arguments.jobs, None,
-                engine_str) if finding.code in FIXABLE_CODES_TUPLE})
-        pending_bool = run_lint_fixes_bool(candidates_list, select_tuple,
+                engine_str):
+            known_dict.setdefault(finding.path, []).append(finding)
+        pending_bool = run_lint_fixes_bool(known_dict, select_tuple,
                                            ignore_tuple, arguments.diff)
         if arguments.diff:
             return int(pending_bool)
@@ -141,14 +142,15 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
     return int(bool(findings_list))
 
 
-def run_lint_fixes_bool(files_list: list[str],
+def run_lint_fixes_bool(known_dict: dict[str, list],
                         select_tuple: tuple[str, ...],
                         ignore_tuple: tuple[str, ...],
                         diff_bool: bool) -> bool:
     """Apply (or show) safe fixes for the selected lint findings.
 
     Args:
-        files_list (list[str]): Files to fix.
+        known_dict (dict[str, list]): Each linted file's findings; only
+            files with a fixable finding are opened.
         select_tuple (tuple[str, ...]): Selected code prefixes.
         ignore_tuple (tuple[str, ...]): Ignored code prefixes.
         diff_bool (bool): Show a diff instead of writing.
@@ -158,10 +160,14 @@ def run_lint_fixes_bool(files_list: list[str],
         Files are changed in place unless diff_bool is set; each file
         is verified before it is written.
     """
-    fixer = functools.partial(fix_compat_text, select_tuple=select_tuple,
-                              ignore_tuple=ignore_tuple)
     changed_int = 0
-    for path_str in files_list:
+    for path_str, findings_list in sorted(known_dict.items()):
+        if not any(finding.code in FIXABLE_CODES_TUPLE
+                   for finding in findings_list):
+            continue
+        fixer = functools.partial(fix_compat_text, select_tuple=select_tuple,
+                                  ignore_tuple=ignore_tuple,
+                                  known_list=findings_list)
         file_fix = fix_file(path_str, Settings(), fixer)
         if file_fix.skip_reason:
             continue

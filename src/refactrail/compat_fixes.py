@@ -20,7 +20,6 @@ half-fixed.
 """
 
 import ast
-import copy
 from dataclasses import dataclass, field
 import io
 import tokenize
@@ -31,6 +30,7 @@ from refactrail.models import Finding
 
 FIXABLE_CODES_TUPLE = ("F401", "F541", "F632", "E703", "E713", "E714")
 MAX_PASSES_INT = 4
+DEFERRED_NOTE_STR = "overlapping fixes wait for the next pass"
 IMPORT_ERROR_NAMES_FROZENSET = frozenset((
     "ImportError", "ModuleNotFoundError", "Exception", "BaseException"))
 
@@ -599,19 +599,22 @@ def edit_import_statement_list(index: SourceIndex, statement: ast.stmt,
                  [*findings_list[1:]], id(statement))]
 
 
-def build_expected_tree(tree: ast.AST, changes_dict: dict) -> ast.AST:
+def build_expected_tree(tree: ast.AST, changes_dict: dict,
+                        text_str: str) -> ast.AST:
     """The original tree with exactly the intended changes made.
 
     Args:
         tree (ast.AST): The original module tree.
         changes_dict (dict): id(original node) -> (change, detail).
+        text_str (str): The original text, parsed again for the copy
+            (much faster than copy.deepcopy of a large tree).
     Returns:
         ast.AST: A changed copy; the original is not modified.
     Warnings:
         Bodies emptied by removed imports receive `pass`, as the
         edits do.
     """
-    clone = copy.deepcopy(tree)
+    clone = parse_quietly_node(text_str, "<fix>")
     mapping_dict = {id(original): copied for original, copied
                     in zip(ast.walk(tree), ast.walk(clone))}
     negated_dict = {}
@@ -784,7 +787,10 @@ def build_edits_list(index: SourceIndex, findings_list: list[Finding],
             edits_list += edit_negated_test_list(index, finding,
                                                  parents_dict, changes_dict)
     fill_empty_bodies_none(index, edits_list, changes_dict)
-    return drop_overlaps_list(edits_list, changes_dict)
+    kept_list = drop_overlaps_list(edits_list, changes_dict)
+    if len(kept_list) < len(edits_list):
+        notes_list.append(DEFERRED_NOTE_STR)
+    return kept_list
 
 
 def drop_overlaps_list(edits_list: list[Edit], changes_dict: dict
@@ -836,12 +842,12 @@ def apply_edits_str(text_str: str, edits_list: list[Edit]) -> str:
     return text_str
 
 
-def check_fixed_text_bool(tree: ast.AST, changes_dict: dict, new_str: str,
-                          path_str: str) -> bool:
+def check_fixed_text_bool(index: SourceIndex, changes_dict: dict,
+                          new_str: str, path_str: str) -> bool:
     """Whether fixed text compiles to exactly the expected tree.
 
     Args:
-        tree (ast.AST): The original tree.
+        index (SourceIndex): The original text and tree.
         changes_dict (dict): The intended changes.
         new_str (str): The fixed text.
         path_str (str): The file path, for compile().
@@ -855,7 +861,7 @@ def check_fixed_text_bool(tree: ast.AST, changes_dict: dict, new_str: str,
         new_tree = parse_quietly_node(new_str, path_str)
     except (SyntaxError, ValueError):
         return False
-    expected = build_expected_tree(tree, changes_dict)
+    expected = build_expected_tree(index.tree, changes_dict, index.text)
     unify = UnifyTransformer()
     return (ast.dump(unify.visit(expected))
             == ast.dump(unify.visit(new_tree)))
@@ -879,7 +885,7 @@ def keep_verified_edits_list(index: SourceIndex, edits_list: list[Edit],
         A group that fails on its own is never applied.
     """
     if not edits_list or check_fixed_text_bool(
-            index.tree, changes_dict, apply_edits_str(index.text,
+            index, changes_dict, apply_edits_str(index.text,
                                                       edits_list), path_str):
         return edits_list
     groups_dict: dict[int, list[Edit]] = {}
@@ -890,7 +896,7 @@ def keep_verified_edits_list(index: SourceIndex, edits_list: list[Edit],
         changes_part_dict = {node_id: change for node_id, change
                              in changes_dict.items() if change[2] == group_int}
         if check_fixed_text_bool(
-                index.tree, changes_part_dict,
+                index, changes_part_dict,
                 apply_edits_str(index.text, group_edits_list), path_str):
             passing_list.append((group_edits_list, changes_part_dict))
     combined_list = sorted((edit for group_edits_list, _ in passing_list
@@ -900,7 +906,7 @@ def keep_verified_edits_list(index: SourceIndex, edits_list: list[Edit],
     combined_dict = {node_id: change for _, part_dict in passing_list
                      for node_id, change in part_dict.items()}
     if combined_list and check_fixed_text_bool(
-            index.tree, combined_dict,
+            index, combined_dict,
             apply_edits_str(index.text, combined_list), path_str):
         return combined_list
     return passing_list[0][0] if passing_list else []
@@ -924,17 +930,35 @@ def list_fixable_findings_list(text_str: str, path_str: str,
     Warnings:
         None.
     """
+    return filter_fixable_list(check_correctness_list(
+        path_str, text_str.encode("utf-8"), select_tuple, ignore_tuple),
+        path_str)
+
+
+def filter_fixable_list(findings_list: list[Finding], path_str: str
+                        ) -> list[Finding]:
+    """The findings this module can fix.
+
+    Args:
+        findings_list (list[Finding]): A file's findings.
+        path_str (str): The file path.
+    Returns:
+        list[Finding]: Fixable codes only; F401 is left out in
+            __init__.py files and .pyi stubs.
+    Warnings:
+        None.
+    """
     is_init = path_str.replace("\\", "/").endswith(("__init__.py", ".pyi"))
-    return [finding for finding in check_correctness_list(
-                path_str, text_str.encode("utf-8"), select_tuple,
-                ignore_tuple)
+    return [finding for finding in findings_list
             if finding.code in FIXABLE_CODES_TUPLE
             and not (is_init and finding.code == "F401")]
 
 
 def fix_compat_text(text_str: str, path_str: str,
                     select_tuple: tuple[str, ...],
-                    ignore_tuple: tuple[str, ...] = ()) -> CompatFixOutcome:
+                    ignore_tuple: tuple[str, ...] = (),
+                    known_list: list[Finding] | None = None
+                    ) -> CompatFixOutcome:
     """Apply safe fixes for the selected findings of one file.
 
     Args:
@@ -942,36 +966,61 @@ def fix_compat_text(text_str: str, path_str: str,
         path_str (str): The file path.
         select_tuple (tuple[str, ...]): Selected code prefixes.
         ignore_tuple (tuple[str, ...]): Ignored code prefixes.
+        known_list (list[Finding] | None): The file's findings when the
+            caller already linted this exact text (saves the first lint).
     Returns:
         CompatFixOutcome: The fixed text, applied fixes and notes.
     Warnings:
         Each pass must pass the tree check, or it is discarded.
     """
     outcome = CompatFixOutcome(text_str)
-    for _ in range(MAX_PASSES_INT):
-        findings_list = list_fixable_findings_list(
-            outcome.text, path_str, select_tuple, ignore_tuple)
-        if not findings_list:
+    for pass_int in range(MAX_PASSES_INT):
+        findings_list = (
+            filter_fixable_list(known_list, path_str)
+            if pass_int == 0 and known_list is not None
+            else list_fixable_findings_list(outcome.text, path_str,
+                                            select_tuple, ignore_tuple))
+        if not findings_list or not run_fix_pass_bool(outcome,
+                                                      findings_list,
+                                                      path_str):
             break
-        index = SourceIndex(outcome.text)
-        changes_dict: dict = {}
-        notes_list: list[str] = []
-        edits_list = build_edits_list(index, findings_list, changes_dict,
-                                      notes_list)
-        outcome.notes = notes_list  # findings still open after this pass
-        verified_list = keep_verified_edits_list(index, edits_list,
-                                                 changes_dict, path_str)
-        if len(verified_list) < len(edits_list):
-            outcome.notes.append("some fixes left out: the fixed code did "
-                                 "not match the expected syntax tree")
-        if not verified_list:
-            break
-        outcome.text = apply_edits_str(outcome.text, verified_list)
-        fixed_list = sorted(dict.fromkeys(
-            fixed_finding for edit in verified_list
-            for fixed_finding in [edit.finding, *edit.also]))
-        outcome.applied += [
-            f"{fixed_finding.line}:{fixed_finding.column} "
-            f"{fixed_finding.code} {fixed_finding.message}"
-            for fixed_finding in fixed_list]
     return outcome
+
+
+def run_fix_pass_bool(outcome: CompatFixOutcome,
+                      findings_list: list[Finding], path_str: str) -> bool:
+    """Apply one verified pass of fixes.
+
+    Args:
+        outcome (CompatFixOutcome): The state so far (changed in place).
+        findings_list (list[Finding]): Fixable findings of outcome.text.
+        path_str (str): The file path, for compile().
+    Returns:
+        bool: True when another pass may fix more: fixes were deferred
+            because they overlapped, or imports were removed (which can
+            leave another import of the same module unused).
+    Warnings:
+        None.
+    """
+    index = SourceIndex(outcome.text)
+    changes_dict: dict = {}
+    notes_list: list[str] = []
+    edits_list = build_edits_list(index, findings_list, changes_dict,
+                                  notes_list)
+    outcome.notes = notes_list  # findings still open after this pass
+    verified_list = keep_verified_edits_list(index, edits_list,
+                                             changes_dict, path_str)
+    if len(verified_list) < len(edits_list):
+        outcome.notes.append("some fixes left out: the fixed code did "
+                             "not match the expected syntax tree")
+    if not verified_list:
+        return False
+    outcome.text = apply_edits_str(outcome.text, verified_list)
+    fixed_list = sorted(dict.fromkeys(
+        fixed_finding for edit in verified_list
+        for fixed_finding in [edit.finding, *edit.also]))
+    outcome.applied += [f"{fixed_finding.line}:{fixed_finding.column} "
+                        f"{fixed_finding.code} {fixed_finding.message}"
+                        for fixed_finding in fixed_list]
+    return DEFERRED_NOTE_STR in notes_list or any(
+        fixed_finding.code == "F401" for fixed_finding in fixed_list)
