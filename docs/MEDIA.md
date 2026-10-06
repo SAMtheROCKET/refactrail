@@ -2,6 +2,8 @@
 
 Planned recordings, where they go in README.md, and how to make them.
 
+**Status:** `refactrail-lint-fix.gif` is in place. They were rendered from real command output in a scripted terminal, so re-make them after a release if the output changes. Still to record: `refactrail-vscode.gif` (needs VS Code) and, optionally, `refactrail-format.gif`.
+
 | File (docs/media/) | Where | What to show | Length | How |
 | --- | --- | --- | --- | --- |
 | `refactrail-lint-fix.gif` | Quick start | `lint --select E4,E7,F` finds 7 issues in examples/lint_fix_demo.py, `--diff` previews, `--fix` fixes them, the re-run is clean | ~20 s | VHS: `refactrail-lint-fix.tape` |

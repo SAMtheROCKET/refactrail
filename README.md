@@ -56,9 +56,7 @@ refactrail check               # structure, naming, type hints, docstrings
 refactrail fix --diff          # preview safe fixes; drop --diff to apply
 ```
 
-<!-- GIF placeholder: docs/media/refactrail-lint-fix.gif
-     Terminal, about 20 s: `refactrail lint src --select E4,E7,F`, then
-     `--diff`, then `--fix`, then the clean re-run. See docs/MEDIA.md. -->
+![RefacTrail finds seven issues with lint --select E4,E7,F, previews the safe fixes with --diff, applies them with --fix and the re-run is clean](https://raw.githubusercontent.com/SAMtheROCKET/refactrail/main/docs/media/refactrail-lint-fix.gif)
 
 Paths default to the current folder; pass files or folders to narrow it.
 Exit codes are 0 (clean), 1 (findings) and 2 (error), ready for CI. If your
