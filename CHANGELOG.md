@@ -19,6 +19,8 @@
   expected syntax tree. On the Python 3.12 standard library the fixed
   files are byte-identical to Ruff 0.16.9's `--fix`; F401 is left alone
   in `__init__.py`, stubs and ImportError-guarded `try` bodies.
+- `refactrail-native rules` lists the same codes as `refactrail rules`
+  (one embedded table, kept identical by a test).
 - R1d: the native linter is about a third faster with identical findings
   (corpus 0.71 s to 0.48 s on 24 threads; Ruff takes 0.37 s): tokens are
   shared between parser and checks, E721 name resolution and bound-name

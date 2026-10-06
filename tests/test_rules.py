@@ -326,5 +326,24 @@ class EngineBehaviourTests(unittest.TestCase):
         self.assertEqual(codes_set, set())
 
 
+
+class NativeRulesTableTests(unittest.TestCase):
+    def test_native_rules_table_matches_the_python_command(self):
+        import contextlib
+        import io
+        from pathlib import Path
+
+        from refactrail.cli import main
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main(["rules"])
+        table_path = (Path(__file__).resolve().parents[1] / "rust" / "crates"
+                      / "cli" / "data" / "rules.txt")
+        if not table_path.exists():
+            self.skipTest("Rust sources are not part of this checkout")
+        self.assertEqual(table_path.read_text(encoding="utf-8"),
+                         output.getvalue())
+
 if __name__ == "__main__":
     unittest.main()

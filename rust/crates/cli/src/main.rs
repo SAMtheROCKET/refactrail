@@ -29,6 +29,10 @@ const USAGE: &str = "usage: refactrail-native check [paths ...] [--profile {stan
                                 [--output-format {text,json,github,sarif}] [--statistics]
                                 [--exit-zero] [--no-cache] [--jobs N]";
 
+/// The RT and RC codes with their titles, as `refactrail rules` prints
+/// them (kept identical by tests/test_rules.py).
+const RULES_TEXT: &str = include_str!("../data/rules.txt");
+
 struct Options {
     paths: Vec<String>,
     overrides: config::Overrides,
@@ -277,6 +281,10 @@ fn main() {
     match arguments.first().map(String::as_str) {
         Some("--version") => {
             println!("{VERSION}");
+            return;
+        }
+        Some("rules") => {
+            print!("{RULES_TEXT}");
             return;
         }
         Some("check") | Some("lint") | Some("scope") | Some("format") | Some("index") => {}

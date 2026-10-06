@@ -93,5 +93,5 @@ choice never changes results, only speed.
 - The `refactrail_core` extension module's functions, which serve the
   CLI.
 - The native `refactrail-native` binary's command set, which does not
-  yet include `rules`, `fix` or `rename`.
+  yet include `fix`, `lint --fix` or `rename`.
 - The text of messages (codes and positions are stable).

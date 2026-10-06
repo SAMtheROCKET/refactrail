@@ -1,0 +1,88 @@
+RT001  Syntax error
+RT002  Unsupported encoding
+RT101  Line too long
+RT102  Constant not UPPER_CASE
+RT103  Constant after other code
+RT201  Single-character name
+RT202  Function name is not a verb
+RT203  Missing dtype suffix (strict)
+RT204  Naming convention
+RT205  Generic name (strict)
+RT206  Return dtype suffix (strict)
+RT207  Parameter dtype suffix (strict)
+RT301  Missing docstring
+RT302  Incomplete docstring
+RT303  Docstring arguments mismatch
+RT401  Parameter annotation missing
+RT402  Return annotation missing
+RT501  Function over preferred length
+RT502  Function over length limit
+RT503  Main block too long
+RT504  Code outside functions
+RC201  Unresolved lexical name
+RC202  Import without lexical use
+RC101  Mutable default argument
+RC102  Duplicate literal dictionary key
+RC103  Identity comparison with a non-singleton literal
+RC104  Bare except handler
+RC105  Unreachable statement after a direct terminator
+RC106  Nonempty tuple assertion
+RC107  Control-flow exit from finally
+E401  Multiple imports on one line
+E402  Module-level import not at top of file
+E701  Multiple statements on one line (colon)
+E702  Multiple statements on one line (semicolon)
+E703  Statement ends with an unnecessary semicolon
+E711  Comparison to None
+E712  Comparison to True or False
+E713  Membership test should use 'not in'
+E714  Identity test should use 'is not'
+E721  Type comparison with == or !=
+E722  Bare except
+E731  Lambda assigned to a name
+E741  Ambiguous variable name
+E742  Ambiguous class name
+E743  Ambiguous function name
+F404  Late __future__ import
+F407  Undefined __future__ feature
+F501  Invalid %-format string
+F502  %-format expected a mapping
+F503  %-format expected a sequence
+F504  %-format has unused named arguments
+F505  %-format is missing arguments
+F506  %-format mixes positional and named placeholders
+F507  %-format placeholder count mismatch
+F508  %-format * specifier requires a sequence
+F509  %-format has an unsupported format character
+F521  Invalid str.format() string
+F522  str.format() has unused named arguments
+F523  str.format() has unused positional arguments
+F524  str.format() is missing arguments
+F525  str.format() mixes automatic and manual numbering
+F541  f-string without placeholders
+F601  Dictionary key literal repeated
+F602  Dictionary key variable repeated
+F621  Too many expressions in star-unpacking assignment
+F622  Two starred expressions in assignment
+F631  Assert test is a non-empty tuple
+F632  'is' comparison with a literal
+F633  print >> is invalid
+F634  If test is a non-empty tuple
+F701  break outside loop
+F702  continue outside loop
+F704  yield or await outside function
+F706  return outside function
+F707  Bare except is not the last handler
+F722  Syntax error in forward annotation
+F901  raise NotImplemented
+F401  Unused import
+F402  Import shadowed by loop variable
+F403  Star import used
+F405  Name may be undefined or from star imports
+F406  Star import outside module level
+F811  Redefinition of unused name
+F821  Undefined name
+F822  Undefined name in __all__
+F823  Local variable referenced before assignment
+F841  Unused local variable
+F842  Unused annotated local variable
