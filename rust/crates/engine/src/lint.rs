@@ -37,7 +37,13 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
     if text.contains('\0') {
         return LintOutcome::ValueError { message: "source code string cannot contain null bytes".into() };
     }
-    let (tree, comments) = match refactrail_parser::parse_with_comments(text) {
+    let needs_tokens = ["E701", "E702", "E703", "F541"].iter().any(|code| settings.is_enabled(code));
+    let parsed = if needs_tokens {
+        refactrail_parser::parse_with_tokens(text)
+    } else {
+        refactrail_parser::parse_with_comments(text).map(|(tree, comments)| (tree, comments, Vec::new()))
+    };
+    let (tree, comments, tokens) = match parsed {
         Ok(parsed) => parsed,
         Err(error) => {
             let (line, offset, message) = refactrail_parser::syntax_error_tuple(text, error);
@@ -63,7 +69,7 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
         }
         findings.push((position.0, position.1, code, message));
     };
-    for (code, position, message, parent) in compat_findings(path, text, &tree, &source, &comments, &symbols, settings) {
+    for (code, position, message, parent) in compat_findings(path, text, &tree, &tokens, &source, &comments, &symbols, settings) {
         report_with_parent(code, position, message, parent);
     }
     let mut report = |code: &'static str, position: (usize, usize), message: String| report_with_parent(code, position, message, 0);
@@ -102,10 +108,12 @@ pub fn analyze_lint(path: &str, raw: &[u8], settings: &Settings) -> LintOutcome 
 }
 
 /// The pycodestyle- and Pyflakes-compatible findings that are selected.
+#[allow(clippy::too_many_arguments)]
 fn compat_findings(
     path: &str,
     text: &str,
     tree: &refactrail_parser::ast::Module,
+    tokens: &[refactrail_parser::LexedToken],
     source: &SourceFile,
     comments: &[(usize, usize)],
     symbols: &refactrail_parser::symtable::SymbolTable,
@@ -114,16 +122,14 @@ fn compat_findings(
     use crate::walk::Visitor;
     let mut out = Vec::new();
     let any_enabled = |codes: &[&str]| codes.iter().any(|code| settings.is_enabled(code));
-    let needs_tokens = any_enabled(&["E701", "E702", "E703", "F541"]);
-    let tokens = if needs_tokens { refactrail_lexer::tokenize(text).unwrap_or_default() } else { Vec::new() };
     if any_enabled(&["E701", "E702", "E703"]) && !tokens.is_empty() {
-        crate::compat_pycodestyle::check_statement_tokens(&tokens, text, tree, source, &mut out);
+        crate::compat_pycodestyle::check_statement_tokens(tokens, text, tree, source, &mut out);
     }
     if any_enabled(&[
         "F501", "F502", "F503", "F504", "F505", "F506", "F507", "F508", "F509", "F521", "F522", "F523", "F524", "F525", "F541", "F601", "F602",
         "F631", "F632", "F633", "F634", "F722", "F901",
     ]) {
-        out.extend(crate::compat_pyflakes::check_module(tree, source, &tokens));
+        out.extend(crate::compat_pyflakes::check_module(tree, source, tokens));
     }
     if any_enabled(&crate::compat_scope::SCOPE_CODES) {
         out.extend(crate::compat_scope::check_module(tree, source, path));
@@ -132,7 +138,7 @@ fn compat_findings(
         crate::compat_pycodestyle::check_import_position(tree, source, &mut out);
     }
     if any_enabled(&["E401", "E711", "E712", "E713", "E714", "E721", "E722", "E731", "E741", "E742", "E743"]) {
-        let lexical = if settings.is_enabled("E721") {
+        let lexical = if settings.is_enabled("E721") && crate::compat_pycodestyle::has_type_comparison_candidate(tree) {
             lexical::analyze_with(tree, source, comments, symbols, true)
         } else {
             lexical::LexicalReport { limitations: Vec::new(), reads: Vec::new(), imports: Vec::new(), scopes: Vec::new(), diagnostics_supported: false }

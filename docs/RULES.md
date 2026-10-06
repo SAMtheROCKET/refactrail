@@ -69,8 +69,20 @@ standard library (2,066 findings) and the 6,988-file corpus (21,552
 findings), as well as on edge-case smoke files. Files the compiler
 rejects are linted by the Python engine. Timing on a 24-thread machine,
 the standalone `refactrail-native lint --jobs 0 --select E4,E7,F` takes
-0.12 s on the standard library and 0.71 s on the corpus; Ruff takes
-0.04 s and 0.36 s. The Python engine takes 2.5 s and 22.5 s.
+0.11 s on the standard library and 0.48 s on the corpus (0.71 s before
+the R1d work below); Ruff 0.16.9 takes 0.04 s and 0.37 s. On one thread
+the corpus takes 3.2 s against Ruff's 1.8 s. The Python engine takes
+2.5 s and 22.5 s. Ruff remains faster; RefacTrail is not advertised as
+faster than Ruff.
+
+R1d speed work, with findings unchanged on every corpus: the parser hands
+its token stream to the lint checks instead of tokenizing twice; the
+name resolution E721 needs runs only when a comparison could be a type
+comparison; the bound-name set is computed on first use; the scope
+checker shares branch paths, borrows names from the syntax tree and
+walks expressions without building child lists. Profiling shows the
+remaining time in tokenizing and parsing (about 27%), the scope checker
+and other tree walks (about 34%) and the compiler checks (about 12%).
 
 ## Scope and formatting expansion (0.3.0a0)
 

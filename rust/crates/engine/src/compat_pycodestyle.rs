@@ -4,7 +4,8 @@
 use crate::lexical::LexicalReport;
 use crate::source::SourceFile;
 use crate::walk::{walk_expr, walk_stmt, CmpOperator, Constant, Expr, ExprContext, ExprKind, Module, Stmt, StmtKind, UnaryOperator, Visitor};
-use refactrail_lexer::{Kind, Token};
+use refactrail_lexer::Kind;
+use refactrail_parser::LexedToken as Token;
 use refactrail_parser::ast::{Arg, ExceptHandler};
 use refactrail_parser::fast_hash::{FastMap, FastSet};
 use std::sync::LazyLock;
@@ -77,35 +78,41 @@ fn soft_compound_set(tree: &Module, source: &SourceFile) -> FastSet<(usize, usiz
     soft.found
 }
 
-fn token_start(token: &Token) -> (usize, usize) {
-    (token.start_pos.0 as usize, token.start_pos.1 as usize)
+/// (line, 0-based character column) of a token's start.
+fn token_start(source: &SourceFile, token: &Token) -> (usize, usize) {
+    let (line, column) = source.locate(token.start);
+    (line, column - 1)
+}
+
+fn token_text<'t>(token: &Token, text: &'t str) -> &'t str {
+    &text[token.start..token.end]
 }
 
 /// is_compound_start_bool.
-fn is_compound_start(tokens: &[Token], index: usize, text: &str, soft: &FastSet<(usize, usize)>) -> bool {
+fn is_compound_start(tokens: &[Token], index: usize, text: &str, source: &SourceFile, soft: &FastSet<(usize, usize)>) -> bool {
     let token = &tokens[index];
     if token.kind != Kind::Name {
         return false;
     }
-    let word = token.text(text);
+    let word = token_text(token, text);
     if COMPOUND_KEYWORDS.contains(&word) {
         return true;
     }
     match word {
-        "match" => soft.contains(&token_start(token)),
-        "case" => next_significant(tokens, index).is_some_and(|next| soft.contains(&token_start(&tokens[next]))),
+        "match" => soft.contains(&token_start(source, token)),
+        "case" => next_significant(tokens, index).is_some_and(|next| soft.contains(&token_start(source, &tokens[next]))),
         _ => false,
     }
 }
 
 /// find_header_keyword_str.
-fn header_keyword<'t>(tokens: &'t [Token], index: usize, text: &'t str, soft: &FastSet<(usize, usize)>) -> &'t str {
-    if !is_compound_start(tokens, index, text, soft) {
+fn header_keyword<'t>(tokens: &[Token], index: usize, text: &'t str, source: &SourceFile, soft: &FastSet<(usize, usize)>) -> &'t str {
+    if !is_compound_start(tokens, index, text, source, soft) {
         return "";
     }
-    let keyword = tokens[index].text(text);
+    let keyword = token_text(&tokens[index], text);
     if keyword == "async" {
-        return next_significant(tokens, index).map_or("", |next| tokens[next].text(text));
+        return next_significant(tokens, index).map_or("", |next| token_text(&tokens[next], text));
     }
     keyword
 }
@@ -136,22 +143,22 @@ pub fn check_statement_tokens(tokens: &[Token], text: &str, tree: &Module, sourc
             continue;
         }
         if is_start {
-            keyword = header_keyword(tokens, index, text, &soft);
+            keyword = header_keyword(tokens, index, text, source, &soft);
             is_start = false;
             lambdas = 0;
         }
-        let word = token.text(text);
+        let word = token_text(token, text);
         if token.kind != Kind::Op {
             if word == "lambda" && depth == 0 {
                 lambdas += 1;
             }
             continue;
         }
-        let (line, column) = token_start(token);
         match word {
             "(" | "[" | "{" => depth += 1,
             ")" | "]" | "}" => depth = depth.saturating_sub(1),
             ";" if depth == 0 => {
+                let (line, column) = token_start(source, token);
                 if is_line_end(tokens, next_significant(tokens, index)) {
                     out.push(("E703", (line, column + 1), "Statement ends with an unnecessary semicolon.".into(), 0));
                 } else {
@@ -161,7 +168,7 @@ pub fn check_statement_tokens(tokens: &[Token], text: &str, tree: &Module, sourc
             }
             ":" if depth == 0 && lambdas > 0 => lambdas -= 1,
             ":" if depth == 0 && !keyword.is_empty() => {
-                check_compound_colon(tokens, index, text, keyword, out);
+                check_compound_colon(tokens, index, text, source, keyword, out);
                 keyword = "";
                 is_start = true;
             }
@@ -171,19 +178,19 @@ pub fn check_statement_tokens(tokens: &[Token], text: &str, tree: &Module, sourc
 }
 
 /// check_compound_colon_none.
-fn check_compound_colon(tokens: &[Token], index: usize, text: &str, keyword: &str, out: &mut Vec<CompatFinding>) {
+fn check_compound_colon(tokens: &[Token], index: usize, text: &str, source: &SourceFile, keyword: &str, out: &mut Vec<CompatFinding>) {
     let next = next_significant(tokens, index);
     if is_line_end(tokens, next) || keyword == "def" {
         return;
     }
     if keyword == "class" {
         if let Some(next) = next {
-            if tokens[next].text(text) == "..." && is_line_end(tokens, next_significant(tokens, next)) {
+            if token_text(&tokens[next], text) == "..." && is_line_end(tokens, next_significant(tokens, next)) {
                 return;
             }
         }
     }
-    let (line, column) = token_start(&tokens[index]);
+    let (line, column) = token_start(source, &tokens[index]);
     out.push(("E701", (line, column + 1), "Multiple statements on one line (colon).".into(), 0));
 }
 
@@ -206,15 +213,17 @@ pub struct NodeChecks<'s, 'a> {
     pub source: &'s SourceFile<'a>,
     /// read_resolutions_dict: (line, column) -> resolution.
     pub resolutions: FastMap<(usize, usize), &'static str>,
-    /// bound_names_set, used when there are no resolutions.
-    pub bound: FastSet<&'a str>,
+    /// bound_names_set, used when there are no resolutions; computed on
+    /// the first lookup.
+    bound: std::cell::OnceCell<FastSet<&'a str>>,
+    tree: &'a Module,
     pub out: Vec<CompatFinding>,
 }
 
 impl<'s, 'a> NodeChecks<'s, 'a> {
     pub fn new(source: &'s SourceFile<'a>, lexical: &LexicalReport, tree: &'a Module) -> Self {
         let resolutions = lexical.reads.iter().map(|read| ((read.line, read.column), read.resolution)).collect();
-        NodeChecks { source, resolutions, bound: collect_bound_names(tree), out: Vec::new() }
+        NodeChecks { source, resolutions, bound: std::cell::OnceCell::new(), tree, out: Vec::new() }
     }
 
     fn report(&mut self, code: &'static str, position: (usize, usize), message: &str) {
@@ -224,7 +233,7 @@ impl<'s, 'a> NodeChecks<'s, 'a> {
     /// is_builtin_read_bool.
     fn is_builtin_read(&self, expression: &Expr, name: &str) -> bool {
         if self.resolutions.is_empty() {
-            return !self.bound.contains(name);
+            return !self.bound.get_or_init(|| collect_bound_names(self.tree)).contains(name);
         }
         self.resolutions.get(&self.source.position(expression.loc)) == Some(&"builtin_or_implicit")
     }
@@ -304,6 +313,46 @@ pub fn identifier_position(source: &SourceFile, loc: refactrail_parser::Loc, nam
         }
         (line, column)
     }
+
+/// Whether any == or != comparison could be an E721 type comparison
+/// (a side is a type() call or a builtin type name). Without one, the
+/// name resolutions E721 needs are not computed.
+pub fn has_type_comparison_candidate(tree: &Module) -> bool {
+    struct Candidates {
+        found: bool,
+    }
+    fn is_candidate(expression: &Expr) -> bool {
+        match &expression.kind {
+            ExprKind::Call { func, .. } => matches!(&func.kind, ExprKind::Name { id, .. } if &**id == "type"),
+            ExprKind::Name { id, .. } => BUILTIN_TYPES.contains(&**id),
+            _ => false,
+        }
+    }
+    impl<'t> Visitor<'t> for Candidates {
+        fn visit_expr(&mut self, node: &'t Expr) {
+            if self.found {
+                return;
+            }
+            if let ExprKind::Compare { left, ops, comparators } = &node.kind {
+                if ops.iter().any(|operator| matches!(operator, CmpOperator::Eq | CmpOperator::NotEq))
+                    && std::iter::once(&**left).chain(comparators).any(is_candidate)
+                {
+                    self.found = true;
+                    return;
+                }
+            }
+            walk_expr(self, node);
+        }
+    }
+    let mut candidates = Candidates { found: false };
+    for statement in &tree.body {
+        candidates.visit_stmt(statement);
+        if candidates.found {
+            break;
+        }
+    }
+    candidates.found
+}
 
 /// is_dtype_expression_bool.
 fn is_dtype_expression(expression: &Expr) -> bool {

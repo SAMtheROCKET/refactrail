@@ -7,7 +7,8 @@
 use crate::compat_pycodestyle::CompatFinding;
 use crate::source::{python_strip, SourceFile};
 use crate::walk::{walk_expr, walk_stmt, CmpOperator, Constant, Expr, ExprKind, Module, Operator, Stmt, StmtKind, Visitor};
-use refactrail_lexer::{Kind, Token};
+use refactrail_lexer::Kind;
+use refactrail_parser::LexedToken as Token;
 use refactrail_parser::fast_hash::FastSet;
 
 const PERCENT_FLAGS: &str = "#0- +";
@@ -312,8 +313,8 @@ impl<'s, 'a> SyntaxChecks<'s, 'a> {
         let end = self.source.byte_offset(node.loc.end_line, node.loc.end_col);
         for token in self.tokens {
             if token.kind == Kind::FStringStart && start <= token.start && token.start < end {
-                let (line, column) = (token.start_pos.0 as usize, token.start_pos.1 as usize);
-                self.out.push(("F541", (line, column + 1), "f-string without any placeholders.".into(), 0));
+                let position = self.source.locate(token.start);
+                self.out.push(("F541", position, "f-string without any placeholders.".into(), 0));
             }
         }
     }

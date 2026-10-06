@@ -47,6 +47,24 @@ pub fn parse_with_comments_version(source: &str, version: Version) -> Result<(Mo
     parser.parse_module().map(|tree| (tree, comments))
 }
 
+/// A token of the parser's stream: kind and byte span (comments and NL
+/// tokens are not part of it).
+#[derive(Clone, Copy, Debug)]
+pub struct LexedToken {
+    pub kind: refactrail_lexer::Kind,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// `parse_with_comments` that also returns the parser's token stream, so
+/// token-based checks need not tokenize the source again.
+pub fn parse_with_tokens(source: &str) -> Result<(Module, Vec<(usize, usize)>, Vec<LexedToken>), ParseError> {
+    let mut parser = parser::Parser::new_version(source, Version::default());
+    let comments = std::mem::take(&mut parser.comments);
+    let tokens = parser.token_stream();
+    parser.parse_module().map(|tree| (tree, comments, tokens))
+}
+
 /// What `compile(source, path, "exec")` reports: None when it compiles,
 /// else (line, offset, message) as SyntaxError's lineno, offset and msg.
 pub fn compile_check(source: &str) -> Option<(u32, u32, String)> {

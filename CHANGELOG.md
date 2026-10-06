@@ -14,6 +14,11 @@
   identical to the Python engine (2,066 standard-library and 21,552
   corpus findings); `lint --engine rust` accepts any RC, E or F
   selection.
+- R1d: the native linter is about a third faster with identical findings
+  (corpus 0.71 s to 0.48 s on 24 threads; Ruff takes 0.37 s): tokens are
+  shared between parser and checks, E721 name resolution and bound-name
+  sets are computed only when needed, and the scope checker borrows names
+  and shares branch paths.
 - Compiler scope analysis understands PEP 695 type parameter scopes.
 - `# noqa` on the first line of a multi-line import or `__all__`
   statement applies to the names inside it.

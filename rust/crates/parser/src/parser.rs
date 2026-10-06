@@ -557,6 +557,16 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// The token stream (kinds and byte spans) for callers of
+    /// parse_with_tokens.
+    pub fn token_stream(&self) -> Vec<crate::LexedToken> {
+        self.kinds
+            .iter()
+            .zip(&self.spans)
+            .map(|(&kind, span)| crate::LexedToken { kind, start: span.start, end: span.end })
+            .collect()
+    }
+
     // ----- token helpers -------------------------------------------------
 
     fn touch(&self, index: usize) {

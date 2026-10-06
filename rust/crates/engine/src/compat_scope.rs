@@ -48,14 +48,14 @@ enum ScopeKind {
 
 /// How a binding's position is reported (locate_report_tuple).
 #[derive(Clone)]
-enum Place {
+enum Place<'a> {
     Plain(Loc),
-    Definition(Loc, String),
-    Handler(Loc, String),
-    Alias(Loc, Option<String>),
+    Definition(Loc, &'a str),
+    Handler(Loc, &'a str),
+    Alias(Loc, Option<&'a str>),
 }
 
-impl Place {
+impl Place<'_> {
     fn line(&self) -> u32 {
         match self {
             Place::Plain(loc) | Place::Definition(loc, _) | Place::Handler(loc, _) | Place::Alias(loc, _) => loc.line,
@@ -63,11 +63,11 @@ impl Place {
     }
 }
 
-struct Binding {
-    name: String,
+struct Binding<'a> {
+    name: &'a str,
     kind: Kind,
-    place: Place,
-    branch: Vec<(usize, usize)>,
+    place: Place<'a>,
+    branch: Branch,
     full_name: String,
     used: bool,
     reexport: bool,
@@ -82,18 +82,18 @@ struct Binding {
     property_pair: bool,
 }
 
-struct Scope {
+struct Scope<'a> {
     kind: ScopeKind,
-    bindings: FastMap<String, usize>,
+    bindings: FastMap<&'a str, usize>,
     history: Vec<usize>,
-    globals: FastSet<String>,
+    globals: FastSet<&'a str>,
     stars: usize,
     uses_locals: bool,
-    nonlocals: FastMap<String, usize>,
-    locals: FastSet<String>,
+    nonlocals: FastMap<&'a str, usize>,
+    locals: FastSet<&'a str>,
 }
 
-impl Scope {
+impl Scope<'_> {
     fn new(kind: ScopeKind) -> Self {
         Scope {
             kind,
@@ -122,15 +122,40 @@ enum Work<'a> {
     StringAnnotation(Rc<Module>, u32, u32),
 }
 
+/// One step of a branch path: (statement key, arm), then the outer path.
+#[derive(Debug)]
+struct BranchNode {
+    key: usize,
+    arm: usize,
+    parent: Branch,
+}
+
+/// The if/try/match arms a binding sits in, innermost first, shared.
+type Branch = Option<Rc<BranchNode>>;
+
+fn same_branch(first: &Branch, second: &Branch) -> bool {
+    match (first, second) {
+        (None, None) => true,
+        (Some(left), Some(right)) => {
+            Rc::ptr_eq(left, right) || (left.key == right.key && left.arm == right.arm && same_branch(&left.parent, &right.parent))
+        }
+        _ => false,
+    }
+}
+
+fn enter_arm(parent: &Branch, key: usize, arm: usize) -> Branch {
+    Some(Rc::new(BranchNode { key, arm, parent: parent.clone() }))
+}
+
 /// Context saved with deferred work: scope stack, branch and shift.
-type Saved = (Vec<usize>, Vec<(usize, usize)>, Option<(u32, u32)>);
+type Saved = (Vec<usize>, Branch, Option<(u32, u32)>);
 
 pub struct ScopeChecker<'a, 's> {
     source: &'s SourceFile<'s>,
-    bindings: Vec<Binding>,
-    scopes: Vec<Scope>,
+    bindings: Vec<Binding<'a>>,
+    scopes: Vec<Scope<'a>>,
     stack: Vec<usize>,
-    branch: Vec<(usize, usize)>,
+    branch: Branch,
     deferred: VecDeque<(Work<'a>, Saved)>,
     finished: Vec<usize>,
     redefinitions: Vec<(usize, usize)>,
@@ -194,11 +219,11 @@ fn first_part(text: &str) -> &str {
     text.split('.').next().unwrap_or("")
 }
 
-fn is_submodule_import(binding: &Binding) -> bool {
+fn is_submodule_import(binding: &Binding<'_>) -> bool {
     !binding.from_import && binding.full_name.contains('.') && binding.name == first_part(&binding.full_name)
 }
 
-fn is_submodule_pair(existing: &Binding, binding: &Binding) -> bool {
+fn is_submodule_pair(existing: &Binding<'_>, binding: &Binding<'_>) -> bool {
     existing.kind == Kind::Import
         && binding.kind == Kind::Import
         && existing.full_name != binding.full_name
@@ -233,21 +258,21 @@ fn find_as_name(line: &str, from: usize, name: &str) -> Option<usize> {
 }
 
 /// collect_local_names_set: names a function body assigns.
-fn collect_local_names(body: Body<'_>) -> FastSet<String> {
-    struct Locals {
-        names: FastSet<String>,
-        declared: FastSet<String>,
+fn collect_local_names(body: Body<'_>) -> FastSet<&str> {
+    struct Locals<'t> {
+        names: FastSet<&'t str>,
+        declared: FastSet<&'t str>,
     }
-    impl<'t> Visitor<'t> for Locals {
+    impl<'t> Visitor<'t> for Locals<'t> {
         fn visit_stmt(&mut self, node: &'t Stmt) {
             match &node.kind {
                 StmtKind::Global { names } | StmtKind::Nonlocal { names } => {
-                    self.declared.extend(names.iter().map(|name| name.to_string()));
+                    self.declared.extend(names.iter().map(|name| &**name));
                 }
                 StmtKind::FunctionDef { name, decorator_list, .. }
                 | StmtKind::AsyncFunctionDef { name, decorator_list, .. }
                 | StmtKind::ClassDef { name, decorator_list, .. } => {
-                    self.names.insert(name.to_string());
+                    self.names.insert(name);
                     for decorator in decorator_list {
                         self.visit_expr(decorator);
                     }
@@ -256,7 +281,7 @@ fn collect_local_names(body: Body<'_>) -> FastSet<String> {
                 StmtKind::Import { names } | StmtKind::ImportFrom { names, .. } => {
                     for alias in names {
                         let bound: &str = alias.asname.as_deref().unwrap_or_else(|| first_part(&alias.name));
-                        self.names.insert(bound.to_string());
+                        self.names.insert(bound);
                     }
                 }
                 _ => {}
@@ -266,7 +291,7 @@ fn collect_local_names(body: Body<'_>) -> FastSet<String> {
         fn visit_expr(&mut self, node: &'t Expr) {
             match &node.kind {
                 ExprKind::Name { id, ctx } if *ctx != ExprContext::Load => {
-                    self.names.insert(id.to_string());
+                    self.names.insert(id);
                 }
                 ExprKind::Lambda { .. } | ExprKind::ListComp { .. } | ExprKind::SetComp { .. } | ExprKind::DictComp { .. } | ExprKind::GeneratorExp { .. } => {
                     return;
@@ -381,7 +406,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             bindings: Vec::new(),
             scopes: vec![Scope::new(ScopeKind::Module)],
             stack: vec![0],
-            branch: Vec::new(),
+            branch: None,
             deferred: VecDeque::new(),
             finished: Vec::new(),
             redefinitions: Vec::new(),
@@ -399,18 +424,18 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             if !checker.scopes[0].bindings.contains_key(name) {
                 let id = checker.new_binding(name, Kind::Declaration, Place::Plain(loc));
                 checker.bindings[id].used = true;
-                checker.scopes[0].bindings.insert(name.to_string(), id);
+                checker.scopes[0].bindings.insert(name, id);
             }
         }
         checker
     }
 
-    fn new_binding(&mut self, name: &str, kind: Kind, place: Place) -> usize {
+    fn new_binding(&mut self, name: &'a str, kind: Kind, place: Place<'a>) -> usize {
         self.bindings.push(Binding {
-            name: name.to_string(),
+            name,
             kind,
             place,
-            branch: Vec::new(),
+            branch: None,
             full_name: String::new(),
             used: false,
             reexport: false,
@@ -432,7 +457,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         }
     }
 
-    fn position(&self, place: &Place) -> (usize, usize) {
+    fn position(&self, place: &Place<'_>) -> (usize, usize) {
         match place {
             Place::Plain(loc) => self.source.position(*loc),
             Place::Definition(loc, name) => self.source.definition_name(*loc, name),
@@ -450,7 +475,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         }
     }
 
-    fn report(&mut self, code: &'static str, place: &Place, message: String, parent_line: u32) {
+    fn report(&mut self, code: &'static str, place: &Place<'_>, message: String, parent_line: u32) {
         let position = self.position(place);
         self.out.push((code, position, message, parent_line as usize));
     }
@@ -507,20 +532,20 @@ impl<'a, 's> ScopeChecker<'a, 's> {
     fn add_binding(&mut self, id: usize) {
         let mut scope = self.scope();
         let mut redirected = false;
-        let name = self.bindings[id].name.clone();
-        if let Some(&owner) = self.scopes[scope].nonlocals.get(&name) {
+        let name = self.bindings[id].name;
+        if let Some(&owner) = self.scopes[scope].nonlocals.get(name) {
             scope = owner;
             redirected = true;
             self.bindings[id].used = true;
-        } else if self.scopes[scope].globals.contains(&name) {
+        } else if self.scopes[scope].globals.contains(name) {
             scope = 0;
-            self.bindings[id].used = self.loaded.contains(name.as_str()) || self.bindings[id].kind == Kind::Import;
+            self.bindings[id].used = self.loaded.contains(name) || self.bindings[id].kind == Kind::Import;
             redirected = true;
         }
         self.bindings[id].branch = self.branch.clone();
         self.bindings[id].scope = scope;
         self.bindings[id].typing_only = self.in_type_checking;
-        let existing = self.scopes[scope].bindings.get(&name).copied();
+        let existing = self.scopes[scope].bindings.get(name).copied();
         self.scopes[scope].history.push(id);
         let Some(existing) = existing.filter(|&existing| self.bindings[existing].kind != Kind::Declaration) else {
             if !redirected {
@@ -536,14 +561,14 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             self.scopes[scope].bindings.insert(name, id);
             return;
         }
-        if self.bindings[existing].branch == self.bindings[id].branch && !redirected {
+        if same_branch(&self.bindings[existing].branch, &self.bindings[id].branch) && !redirected {
             self.check_redefinition(existing, id);
         }
         self.bindings[id].used = self.bindings[id].used || self.bindings[existing].used;
         self.scopes[scope].bindings.insert(name, id);
     }
 
-    fn bind(&mut self, name: &str, kind: Kind, place: Place) -> usize {
+    fn bind(&mut self, name: &'a str, kind: Kind, place: Place<'a>) -> usize {
         let id = self.new_binding(name, kind, place);
         self.add_binding(id);
         id
@@ -554,7 +579,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         if self.scopes[self.scope()].kind != ScopeKind::Function {
             return;
         }
-        let Some(shadowed) = self.find_binding(&self.bindings[id].name.clone()) else { return };
+        let Some(shadowed) = self.find_binding(self.bindings[id].name) else { return };
         if self.bindings[shadowed].kind != Kind::Import {
             return;
         }
@@ -565,7 +590,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             self.report("F402", &place, message, 0);
             return;
         }
-        if is_dummy(&binding.name)
+        if is_dummy(binding.name)
             || matches!(binding.kind, Kind::Annotation | Kind::Handler)
             || is_submodule_pair(&self.bindings[shadowed], binding)
             || self.bindings[shadowed].typing_only
@@ -588,7 +613,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         if old.used || !(matches!(old.kind, Kind::Definition | Kind::Class | Kind::Import) || (is_definition && old.kind == Kind::Assignment)) {
             return;
         }
-        if is_dummy(&new.name) || (old.typing_only && !new.typing_only) {
+        if is_dummy(new.name) || (old.typing_only && !new.typing_only) {
             return;
         }
         if matches!(new.kind, Kind::Annotation | Kind::Declaration | Kind::Handler) {
@@ -682,8 +707,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
     fn arms(&mut self, node: &'a Stmt, arms: &[&'a [Stmt]], first_arm: usize) {
         let saved = self.branch.clone();
         for (index, arm) in arms.iter().enumerate() {
-            self.branch = saved.clone();
-            self.branch.push((node as *const Stmt as usize, first_arm + index));
+            self.branch = enter_arm(&saved, node as *const Stmt as usize, first_arm + index);
             self.statements(arm);
         }
         self.branch = saved;
@@ -712,7 +736,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                 if generic {
                     self.stack.pop();
                 }
-                let id = self.new_binding(name, Kind::Definition, Place::Definition(node.loc, name.to_string()));
+                let id = self.new_binding(name, Kind::Definition, Place::Definition(node.loc, name));
                 self.bindings[id].overload = is_overload(decorator_list);
                 self.bindings[id].property_pair = is_property_pair(decorator_list, name);
                 self.add_binding(id);
@@ -732,7 +756,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                 if generic {
                     self.stack.pop();
                 }
-                self.bind(name, Kind::Class, Place::Definition(node.loc, name.to_string()));
+                self.bind(name, Kind::Class, Place::Definition(node.loc, name));
             }
             StmtKind::TypeAlias { name, type_params, value } => {
                 let generic = self.enter_type_scope(type_params);
@@ -803,14 +827,14 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                 self.handled.push(handlers.iter().any(is_name_error_handler));
                 let saved = self.branch.clone();
                 let key = node as *const Stmt as usize;
-                self.branch = [saved.clone(), vec![(key, 0)]].concat();
+                self.branch = enter_arm(&saved, key, 0);
                 self.statements(body);
                 self.handled.pop();
                 for (index, handler) in handlers.iter().enumerate() {
-                    self.branch = [saved.clone(), vec![(key, index + 1)]].concat();
+                    self.branch = enter_arm(&saved, key, index + 1);
                     self.handler(handler);
                 }
-                self.branch = [saved.clone(), vec![(key, 0)]].concat();
+                self.branch = enter_arm(&saved, key, 0);
                 self.statements(orelse);
                 self.branch = saved;
                 self.statements(finalbody);
@@ -819,7 +843,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                 self.expression(subject);
                 let saved = self.branch.clone();
                 for (index, case) in cases.iter().enumerate() {
-                    self.branch = [saved.clone(), vec![(node as *const Stmt as usize, index)]].concat();
+                    self.branch = enter_arm(&saved, node as *const Stmt as usize, index);
                     self.pattern(&case.pattern);
                     if let Some(guard) = &case.guard {
                         self.expression(guard);
@@ -831,12 +855,12 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             StmtKind::Delete { targets } => self.delete(targets),
             StmtKind::Global { names } => {
                 let scope = self.scope();
-                self.scopes[scope].globals.extend(names.iter().map(|name| name.to_string()));
+                self.scopes[scope].globals.extend(names.iter().map(|name| &**name));
                 for name in names {
                     if !self.scopes[0].bindings.contains_key(&**name) {
                         let id = self.new_binding(name, Kind::Declaration, Place::Plain(node.loc));
                         self.bindings[id].used = true;
-                        self.scopes[0].bindings.insert(name.to_string(), id);
+                        self.scopes[0].bindings.insert(name, id);
                     }
                 }
             }
@@ -851,14 +875,14 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                         let id = self.scopes[owner].bindings[&**name];
                         self.mark_used(id);
                         let scope = self.scope();
-                        self.scopes[scope].nonlocals.insert(name.to_string(), owner);
+                        self.scopes[scope].nonlocals.insert(name, owner);
                     }
                 }
             }
             StmtKind::Import { names } => {
                 for alias in names {
-                    let name = alias.asname.as_deref().unwrap_or_else(|| first_part(&alias.name)).to_string();
-                    let id = self.new_binding(&name, Kind::Import, Place::Alias(alias.loc, alias.asname.as_deref().map(str::to_string)));
+                    let name: &'a str = alias.asname.as_deref().unwrap_or_else(|| first_part(&alias.name));
+                    let id = self.new_binding(name, Kind::Import, Place::Alias(alias.loc, alias.asname.as_deref()));
                     let binding = &mut self.bindings[id];
                     binding.full_name = alias.name.to_string();
                     binding.reexport = alias.asname.as_deref() == Some(&*alias.name);
@@ -881,8 +905,8 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                         continue;
                     }
                     let kind = if module_name == "__future__" { Kind::Future } else { Kind::Import };
-                    let name = alias.asname.as_deref().unwrap_or(&alias.name).to_string();
-                    let id = self.new_binding(&name, kind, Place::Alias(alias.loc, alias.asname.as_deref().map(str::to_string)));
+                    let name: &'a str = alias.asname.as_deref().unwrap_or(&alias.name);
+                    let id = self.new_binding(name, kind, Place::Alias(alias.loc, alias.asname.as_deref()));
                     let binding = &mut self.bindings[id];
                     binding.full_name = format!("{module_name}.{}", alias.name);
                     binding.reexport = alias.asname.as_deref() == Some(&*alias.name);
@@ -952,7 +976,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         self.expression(value);
         let ExprKind::Call { func, args, .. } = &value.kind else { return };
         let ExprKind::Attribute { value: object, attr, .. } = &func.kind else { return };
-        if name_id(object) != Some("__all__") || args.is_empty() || !self.branch.is_empty() {
+        if name_id(object) != Some("__all__") || args.is_empty() || self.branch.is_some() {
             return;
         }
         match &**attr {
@@ -978,7 +1002,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         };
         let scope = self.scope();
         let previous = self.scopes[scope].bindings.get(&**name).copied();
-        let id = self.bind(name, Kind::Handler, Place::Handler(handler.loc, name.to_string()));
+        let id = self.bind(name, Kind::Handler, Place::Handler(handler.loc, name));
         self.statements(&handler.body);
         if !self.bindings[id].used {
             let place = self.bindings[id].place.clone();
@@ -988,7 +1012,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         if self.scopes[scope].bindings.get(&**name) == Some(&id) {
             self.scopes[scope].bindings.remove(&**name);
             if let Some(previous) = previous {
-                self.scopes[scope].bindings.insert(name.to_string(), previous);
+                self.scopes[scope].bindings.insert(name, previous);
             }
         }
     }
@@ -1041,7 +1065,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             }
             if let Some(&id) = self.scopes[scope].bindings.get(name) {
                 self.bindings[id].used = true;
-                if self.branch.is_empty() && !is_global {
+                if self.branch.is_none() && !is_global {
                     self.scopes[scope].bindings.remove(name);
                 }
             } else if self.find_binding(name).is_none() && !BUILTINS.contains(name) {
@@ -1057,7 +1081,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         }
         self.scopes.push(Scope::new(ScopeKind::Type));
         self.stack.push(self.scopes.len() - 1);
-        let parts: Vec<(&str, Option<&'a Expr>, Option<&'a Expr>, Loc)> = type_params
+        let parts: Vec<(&'a str, Option<&'a Expr>, Option<&'a Expr>, Loc)> = type_params
             .iter()
             .map(|parameter| match &parameter.kind {
                 TypeParamKind::TypeVar { name, bound, default_value } => (&**name, bound.as_deref(), default_value.as_deref(), parameter.loc),
@@ -1115,6 +1139,12 @@ impl<'a, 's> ScopeChecker<'a, 's> {
 
     /// visit_expression_none.
     fn expression(&mut self, node: &'a Expr) {
+        self.visit_expr(node);
+    }
+
+    /// The per-node part of visit_expression_none; children are visited
+    /// through the Visitor walk, in field order.
+    fn expression_node(&mut self, node: &'a Expr) {
         match &node.kind {
             ExprKind::Name { id, ctx } => match ctx {
                 ExprContext::Load => self.handle_load(id, node.loc),
@@ -1132,9 +1162,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             ExprKind::ListComp { .. } | ExprKind::SetComp { .. } | ExprKind::DictComp { .. } | ExprKind::GeneratorExp { .. } => self.comprehension(node),
             ExprKind::Call { func, args, keywords } => {
                 if !self.typing_call(func, args, keywords) {
-                    for child in children(node) {
-                        self.expression(child);
-                    }
+                    walk_expr(self, node);
                 }
             }
             ExprKind::NamedExpr { target, value } => {
@@ -1143,11 +1171,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
                     self.bind_walrus(id, target.loc);
                 }
             }
-            _ => {
-                for child in children(node) {
-                    self.expression(child);
-                }
-            }
+            _ => walk_expr(self, node),
         }
     }
 
@@ -1177,7 +1201,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
     }
 
     /// bind_walrus_none: bind in the nearest non-comprehension scope.
-    fn bind_walrus(&mut self, name: &str, loc: Loc) {
+    fn bind_walrus(&mut self, name: &'a str, loc: Loc) {
         let mut index = self.stack.len() - 1;
         while index > 0 && self.scopes[self.stack[index]].kind == ScopeKind::Comprehension {
             index -= 1;
@@ -1354,7 +1378,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
     /// check_exports_none.
     fn check_exports(&mut self) {
         for (name, loc, statement_line) in std::mem::take(&mut self.exports) {
-            if let Some(&id) = self.scopes[0].bindings.get(&name) {
+            if let Some(&id) = self.scopes[0].bindings.get(name.as_str()) {
                 self.mark_used(id);
             } else if BUILTINS.contains(name.as_str()) {
                 continue;
@@ -1387,7 +1411,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         candidates.sort_unstable();
         for &id in &history {
             let binding = &self.bindings[id];
-            if binding.kind == Kind::Import && is_submodule_import(binding) && self.scopes[scope].bindings.get(&binding.name) != Some(&id) {
+            if binding.kind == Kind::Import && is_submodule_import(binding) && self.scopes[scope].bindings.get(binding.name) != Some(&id) {
                 candidates.push(id);
             }
         }
@@ -1399,7 +1423,7 @@ impl<'a, 's> ScopeChecker<'a, 's> {
             if binding.full_name.contains('.')
                 && !binding.full_name.starts_with('.')
                 && binding.name == first_part(&binding.full_name)
-                && used_roots.contains(&binding.name)
+                && used_roots.contains(binding.name)
             {
                 continue;
             }
@@ -1417,11 +1441,11 @@ impl<'a, 's> ScopeChecker<'a, 's> {
         if self.scopes[scope].uses_locals {
             return;
         }
-        let mut entries: Vec<(String, usize)> = self.scopes[scope].bindings.iter().map(|(name, &id)| (name.clone(), id)).collect();
+        let mut entries: Vec<(&'a str, usize)> = self.scopes[scope].bindings.iter().map(|(&name, &id)| (name, id)).collect();
         entries.sort_unstable_by_key(|entry| entry.1);
         for (name, id) in entries {
             let binding = &self.bindings[id];
-            if binding.used || self.scopes[scope].globals.contains(&name) || is_dummy(&name) || TRACEBACK_NAMES.contains(&name.as_str()) {
+            if binding.used || self.scopes[scope].globals.contains(name) || is_dummy(name) || TRACEBACK_NAMES.contains(&name) {
                 continue;
             }
             let place = binding.place.clone();
@@ -1439,4 +1463,10 @@ pub fn check_module(tree: &Module, source: &SourceFile, path: &str) -> Vec<Compa
     let mut checker = ScopeChecker::new(tree, source, path);
     checker.run(tree);
     checker.out
+}
+
+impl<'a> Visitor<'a> for ScopeChecker<'a, '_> {
+    fn visit_expr(&mut self, node: &'a Expr) {
+        self.expression_node(node);
+    }
 }
