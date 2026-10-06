@@ -359,6 +359,11 @@ fn first_invalid_identifier_char(name: &str, tables: &IdentifierTables) -> Optio
     })
 }
 
+/// `str.isidentifier()` under the Unicode tables of `version`'s CPython.
+pub fn is_identifier(name: &str, version: Version) -> bool {
+    !name.is_empty() && first_invalid_identifier_char(name, &identifier_tables(version)).is_none()
+}
+
 fn expand_bare_cr(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 4);
     let mut chars = text.chars().peekable();

@@ -277,7 +277,7 @@ contains no Ruff code. It parses Python 3.12, 3.13 and 3.14 code with
 each version's own grammar (the running Python's in the package;
 `--python-version` in `refactrail-native`, default 3.14), verified
 against each CPython version. `check`, `lint` and `format` accept `--engine`, and
-the standalone `refactrail-native` binary runs `check`, `lint`, `scope`,
+the standalone `refactrail-native` binary runs `check`, `lint`, `rename`, `scope`,
 `format`, `index` and `rules` without Python. Outputs are byte-identical to the
 Python engine on the recorded corpora and fuzzed inputs, with CPython as the
 oracle; see [the dual-engine record](docs/DUAL_ENGINES.md). Parity evidence

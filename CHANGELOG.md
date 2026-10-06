@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `refactrail-native rename` previews a local-variable rename without
+  Python: the same JSON document, diff and refusals (RENAME001-RENAME007)
+  as `refactrail rename`, byte-identical on 12,056 requests over the
+  standard library and 129 third-party packages
+  (`scripts/rename_parity.py`). The native binary now lacks only `fix`
+  and `lint --fix`.
+
 ## 0.5.1a0 - VS Code Marketplace and a simpler README, 2026-10-07
 
 - The VS Code extension is on the Marketplace (publisher samtherocket)

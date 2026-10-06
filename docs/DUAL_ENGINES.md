@@ -101,6 +101,7 @@ is a later, separate decision.
 | 8 Benchmarks | done for `check`, `lint`, `format` | see below |
 | 9 Native index (`crates/engine/src/index.rs`, `refactrail-native index`) | done | refactrail-index-1 documents byte-identical to `refactrail index` on 9/9 roots, with and without `--changed` |
 | 10 Engine choice in the Python CLI | done | `refactrail lint` and `refactrail format` take `--engine auto\|python\|rust` (as `check` does); 31/31 lint/format runs (text, json, sarif; spacing, wrap, hug; notebooks; errors) byte-identical between `--engine rust` and `--engine python`; regression tests in `tests/test_engine_parity.py` |
+| 11 Native rename (`crates/cli/src/rename_cmd.rs`, `refactrail-native rename`) | done | Documents and refusals (RENAME001-RENAME007, scope limits) byte-identical to `refactrail rename`, exit status included, on 6,016 requests over the Python 3.12 standard library and 6,040 over 129 third-party packages, 950 of them successful renames (`scripts/rename_parity.py`) |
 
 The native CLI's `lint`, `scope`, `format` (including `--write`) and
 `index` outputs are byte-identical to the Python CLI in 37/37 + 9/9

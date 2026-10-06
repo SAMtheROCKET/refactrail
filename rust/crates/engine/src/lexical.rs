@@ -90,7 +90,7 @@ pub struct LexicalReport {
 }
 
 /// collect_scope_limits_list: constructs outside the diagnostic contract.
-fn scope_limits(module: &Module) -> Vec<String> {
+pub fn scope_limits(module: &Module) -> Vec<String> {
     struct Limits {
         found: FastSet<String>,
     }

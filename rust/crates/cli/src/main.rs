@@ -13,6 +13,7 @@ mod format_cmd;
 mod index_cmd;
 mod json;
 mod output;
+mod rename_cmd;
 
 use rayon::prelude::*;
 use refactrail_engine::{check_file, Row};
@@ -287,13 +288,14 @@ fn main() {
             print!("{RULES_TEXT}");
             return;
         }
-        Some("check") | Some("lint") | Some("scope") | Some("format") | Some("index") => {}
+        Some("check") | Some("lint") | Some("scope") | Some("format") | Some("index") | Some("rename") => {}
         _ => {
             eprintln!("{USAGE}
 {}
 {}
 {}
-{}", commands::LINT_USAGE, commands::SCOPE_USAGE, format_cmd::FORMAT_USAGE, index_cmd::INDEX_USAGE);
+{}
+{}", commands::LINT_USAGE, commands::SCOPE_USAGE, format_cmd::FORMAT_USAGE, index_cmd::INDEX_USAGE, rename_cmd::RENAME_USAGE);
             std::process::exit(2);
         }
     }
@@ -302,6 +304,7 @@ fn main() {
         "scope" => commands::run_scope(&arguments[1..]),
         "format" => format_cmd::run_format(&arguments[1..]),
         "index" => index_cmd::run_index(&arguments[1..]),
+        "rename" => rename_cmd::run_rename(&arguments[1..]),
         _ => run(&arguments[1..]),
     });
     match result {
