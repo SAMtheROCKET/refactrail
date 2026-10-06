@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The engine contract is now 5 (Ruff-compatible codes). An older
+  refactrail-core, such as 0.4.0a0 from PyPI next to RefacTrail installed
+  from GitHub, is no longer used for linting (it does not know the E and F
+  codes and reported nothing); the Python engine runs instead, with the
+  same results.
 - `lint` gains 47 pycodestyle- and Pyflakes-compatible codes (E401-E743,
   F404-F901 without scope analysis), computed by RefacTrail's own engine.
   Ruff 0.16.9 used as an external oracle reports the same 6,009 findings

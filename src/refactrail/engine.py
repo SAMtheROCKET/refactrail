@@ -23,7 +23,7 @@ from refactrail.source import build_source_file, decode_source_text
 PARALLEL_MINIMUM_FILES_INT = 64
 CACHE_FOLDER_STR = ".refactrail_cache"
 ENGINES_TUPLE = ("auto", "python", "rust")
-RULE_CONTRACT_VERSION_INT = 4
+RULE_CONTRACT_VERSION_INT = 5
 FINDING_ORDER_KEY = attrgetter("path", "line", "column", "code",
                                "severity", "message")
 

@@ -141,6 +141,6 @@ fn refactrail_core(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(lint_files, module)?)?;
     module.add_function(wrap_pyfunction!(format_text, module)?)?;
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    module.add("RULE_CONTRACT_VERSION", 4)?;
+    module.add("RULE_CONTRACT_VERSION", 5)?;
     Ok(())
 }
