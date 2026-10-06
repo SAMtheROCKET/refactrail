@@ -30,50 +30,62 @@ Built for developers, data scientists and teams that want clean,
 consistent code; pair it with FuncLoom to turn scripts and notebooks into
 functions and FlowBlueprint to draw the architecture.
 
-**Status: alpha.** The latest release on PyPI is 0.5.0a0 (experimental
-alpha; see [what's new](#whats-new-in-050a0)). Python 3.12 or
-newer is required. RefacTrail has its own package, CLI and VS Code extension. It
-installs FuncLoom automatically for its rewrite API; FuncLoom has no
-dependency on RefacTrail. No LLM, account or network is needed at runtime.
+**Status:** alpha, version 0.5.1a0 on PyPI. Free and open source (MIT).
+Works offline: no AI model, account or internet connection needed.
 
-## Quick start
+## Start in one minute
 
-```bash
-pip install refactrail
-```
+1. **Install** (needs Python 3.12 or newer;
+   [older Python? see below](#your-project-uses-an-older-python)):
 
-That one command also installs FuncLoom and the fast Rust engine (a native
-wheel for Windows, macOS and Linux; on other systems a small fallback is
-installed and the Python engine gives the same results, so nothing ever
-needs compiling). Python 3.12 or newer is required.
+   ```bash
+   pip install refactrail
+   ```
 
-Then, in any project folder:
+   This also installs FuncLoom and the fast Rust engine. Nothing needs
+   compiling: every system gets a ready-made package.
 
-```bash
-refactrail                     # the most useful commands
-refactrail lint                # find likely bugs
-refactrail format --diff       # preview formatting; --write applies it
-refactrail check               # structure, naming, type hints, docstrings
-refactrail fix --diff          # preview safe fixes; drop --diff to apply
-```
+2. **Run it in your project folder:**
+
+   ```bash
+   refactrail lint                # find likely bugs
+   refactrail lint --fix          # fix the safe ones (--diff to preview)
+   refactrail format --diff       # preview tidy formatting (--write applies)
+   refactrail check               # structure, naming, type hints, docstrings
+   ```
+
+3. **Read the result.** Each finding shows the file, line and a short
+   reason. Exit code 0 means clean, 1 means findings, 2 means an error,
+   so it drops straight into CI.
 
 ![RefacTrail finds seven issues with lint --select E4,E7,F, previews the safe fixes with --diff, applies them with --fix and the re-run is clean](https://raw.githubusercontent.com/SAMtheROCKET/refactrail/main/docs/media/refactrail-lint-fix.gif)
 
-Paths default to the current folder; pass files or folders to narrow it.
-Exit codes are 0 (clean), 1 (findings) and 2 (error), ready for CI. If your
-system blocks the `refactrail` command, use `python -m refactrail`.
+Already use Ruff? `refactrail lint --select E4,E7,F` checks the same
+default rules with the same codes, so your `# noqa` comments keep
+working. Typing just `refactrail` shows the most useful commands. If your
+computer blocks the `refactrail` command, type `python -m refactrail`.
 
-**In VS Code**, install the [RefacTrail extension](https://marketplace.visualstudio.com/items?itemName=samtherocket.refactrail) from
-the Marketplace (search *RefacTrail* in the Extensions view) and run
-*RefacTrail: ...* from the Command Palette. It uses the Python interpreter selected in VS Code
-and offers to install RefacTrail there with one click.
+## In VS Code
 
-**On every commit**, add the hooks to `.pre-commit-config.yaml`:
+1. Install **[RefacTrail](https://marketplace.visualstudio.com/items?itemName=samtherocket.refactrail)** from the
+   Extensions view (search *RefacTrail*).
+2. Open a Python file, press **Ctrl+Shift+P** (**Cmd+Shift+P** on a Mac)
+   and type **RefacTrail**.
+3. The first time, click **Install** when asked; the extension sets
+   RefacTrail up in your Python for you.
+
+Commands: **Check active file** and **Lint general correctness**
+(findings in the Problems panel), **Preview fixes** / **Apply fixes**, and
+**Preview** / **Apply independent formatting** (notebooks too).
+
+## Check on every commit (optional)
+
+Add this to `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
   - repo: https://github.com/SAMtheROCKET/refactrail
-    rev: v0.5.0a0
+    rev: v0.5.1a0
     hooks:
       - id: refactrail-lint
       - id: refactrail-format
@@ -82,44 +94,58 @@ repos:
 `refactrail-format-check` (fails instead of rewriting) and
 `refactrail-check` are also available.
 
-## What's new in 0.5.0a0
+## What's new in 0.5.1a0
 
-- **Ruff-compatible rules:** `refactrail lint --select E4,E7,F` checks
-  Ruff's default rule set (pycodestyle E4/E7/E9 and Pyflakes F codes)
-  with the same codes, so existing `# noqa` comments keep working. On a
-  6,988-file corpus 19,827 of Ruff's 19,830 findings match.
-- **Safe fixes:** `lint --fix` (or `--diff` to preview) removes unused
-  imports and fixes F541, F632, E703, E713 and E714; on the Python
-  standard library the result is byte-identical to Ruff's `--fix`.
-- **Faster native engine:** the Rust engine lints the 6,988-file corpus
-  in about 0.5 s on 24 threads with findings identical to the Python
-  engine (Ruff is still faster).
-- **Stable interfaces:** [docs/INTERFACES.md](docs/INTERFACES.md) lists
-  what stays stable through the beta; `refactrail-native rules` lists
-  the codes without Python.
+- **VS Code extension on the Marketplace,** now with an icon: search
+  *RefacTrail* in the Extensions view.
+- **Older-Python projects:** a step-by-step
+  [guide](https://github.com/SAMtheROCKET/refactrail/blob/main/docs/OLDER_PYTHON.md), tested with code for Python 3.8, 3.9 and
+  3.10.
+- **A simpler README.** Rules, fixes and engines are unchanged
+  (refactrail-core 0.5.1a0 is the 0.5.0a0 engine, versioned in step);
+  0.5.0a0's Ruff-compatible rules and safe fixes are in the
+  [changelog](https://github.com/SAMtheROCKET/refactrail/blob/main/CHANGELOG.md).
 
-## Office machines and older Python
+## Your project uses an older Python?
 
-RefacTrail needs Python 3.12 or newer, but your project does not: the tool
-only reads your code, so it can run on its own Python next to a project
-that stays on 3.9, 3.10 or 3.11. Neither of these needs administrator
-rights; [uv](https://docs.astral.sh/uv/) downloads its own Python 3.12
-into your user folder:
+No problem. RefacTrail only **reads** your code, so it runs on its own
+Python 3.12 or newer while your project stays on Python 3.8, 3.9, 3.10 or
+3.11. Do this once:
 
-```bash
-uvx --python 3.12 refactrail lint src          # one-off run
-uv tool install --python 3.12 refactrail       # or install once
-refactrail lint src --select E4,E7,F
-```
+1. **Make a separate Python for the tools** (no admin rights needed):
 
-`pipx install --python <path to a Python 3.12> refactrail` works the same
-way. If `pip` says `from versions: none`, your Python is older than 3.12
-or pip is pointed at a company mirror that does not carry the package
-(check with `python -m pip config list`, and ask IT to allow it).
+   ```bash
+   # Windows (Command Prompt)
+   py -3.12 -m venv %USERPROFILE%\py-tools
+   %USERPROFILE%\py-tools\Scripts\python -m pip install refactrail
 
-Step by step, with the VS Code settings and the limits: [using the tools on older-Python projects](https://github.com/SAMtheROCKET/refactrail/blob/main/docs/OLDER_PYTHON.md).
+   # macOS / Linux
+   python3.12 -m venv ~/py-tools
+   ~/py-tools/bin/python -m pip install refactrail
+   ```
 
-### From source (development)
+   No Python 3.12 on the machine? Run `pip install uv`, then
+   `uvx --python 3.12 refactrail lint my_project`: uv downloads Python 3.12 for you.
+
+2. **Run RefacTrail with that Python:**
+
+   ```bash
+   %USERPROFILE%\py-tools\Scripts\python -m refactrail lint my_project     # Windows
+   ~/py-tools/bin/python -m refactrail lint my_project                       # macOS / Linux
+   ```
+
+3. **In VS Code**, open Settings, search for `refactrail.pythonPath` and paste
+   the path of that Python (for example
+   `C:\Users\YOU\py-tools\Scripts\python.exe`).
+
+Your project keeps using its own Python to run. More detail, limits and
+fixes for common errors: [the older-Python guide](https://github.com/SAMtheROCKET/refactrail/blob/main/docs/OLDER_PYTHON.md).
+
+If `pip install refactrail` says `from versions: none`, your Python is older
+than 3.12 (use the steps above) or your company's package mirror does not
+carry it yet (ask IT to allow it).
+
+## From source (for contributors)
 
 Install FuncLoom from its source folder and the local engine fallback
 first, then RefacTrail:
@@ -272,7 +298,7 @@ environment containing these packages, and use a trusted workspace.
 
 ```powershell
 python scripts/verify.py
-python scripts/release_check.py --output dist/0.5.0a0 --dependency-wheel path/to/funcloom-0.10.4a0-py3-none-any.whl
+python scripts/release_check.py --output dist/0.5.1a0 --dependency-wheel path/to/funcloom-0.10.5a0-py3-none-any.whl
 ```
 
 The release script builds and checks a wheel and source archive, installs

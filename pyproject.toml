@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "refactrail"
-version = "0.5.0a0"
+version = "0.5.1a0"
 description = "The Python refactorizer: auto-refactor, lint and format Python with verified fixes and independent pure-Python and Rust engines"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,7 +24,7 @@ classifiers = [
 ]
 # refactrail-core is the Rust engine: pip picks the native wheel for the
 # system, or its pure-Python fallback wheel, so installation never needs Rust.
-dependencies = ["funcloom>=0.10.2a0,<0.11", "refactrail-core==0.5.0a0"]
+dependencies = ["funcloom>=0.10.2a0,<0.11", "refactrail-core==0.5.1a0"]
 
 [project.optional-dependencies]
 fast = []

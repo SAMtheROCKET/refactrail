@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "refactrail-core"
-version = "0.5.0a0"
+version = "0.5.1a0"
 description = "Rust engine for RefacTrail, the Python refactorizer: the same results as its Python engine"
 readme = "README.md"
 requires-python = ">=3.12"
