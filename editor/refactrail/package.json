@@ -15,6 +15,15 @@
   "toolVersion": "0.5.0a0",
   "publisher": "samtherocket",
   "license": "MIT",
+  "icon": "icon.png",
+  "homepage": "https://samtherocket.github.io/refactrail/",
+  "bugs": {
+    "url": "https://github.com/SAMtheROCKET/refactrail/issues"
+  },
+  "galleryBanner": {
+    "color": "#86380f",
+    "theme": "dark"
+  },
   "preview": true,
   "engines": {
     "vscode": "^1.90.0"
@@ -101,7 +110,10 @@
         "refactrail.bracketStyle": {
           "type": "string",
           "default": "own-line",
-          "enum": ["own-line", "hug"],
+          "enum": [
+            "own-line",
+            "hug"
+          ],
           "enumDescriptions": [
             "Closing brackets on their own line; one element per line when a list is split.",
             "Closing brackets stay on the last content line; elements are packed while they fit."
