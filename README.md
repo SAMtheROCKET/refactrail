@@ -117,6 +117,8 @@ way. If `pip` says `from versions: none`, your Python is older than 3.12
 or pip is pointed at a company mirror that does not carry the package
 (check with `python -m pip config list`, and ask IT to allow it).
 
+Step by step, with the VS Code settings and the limits: [using the tools on older-Python projects](https://github.com/SAMtheROCKET/refactrail/blob/main/docs/OLDER_PYTHON.md).
+
 ### From source (development)
 
 Install FuncLoom from its source folder and the local engine fallback
