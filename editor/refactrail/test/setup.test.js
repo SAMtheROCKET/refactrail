@@ -31,6 +31,8 @@ function fakeVscode({ answer = undefined, pythonApi = null, workspace = null } =
 test('install arguments pin the exact tool version', () => {
     assert.deepEqual(installArguments('refactrail', '0.3.1a0'),
         ['-m', 'pip', 'install', 'refactrail==0.3.1a0']);
+    assert.deepEqual(installArguments('flowblueprint', '0.2.0a0'),
+        ['-m', 'pip', 'install', 'flowblueprint==0.2.0a0']);
     assert.throws(() => installArguments('other', '1.0'), /Unsupported/);
     assert.throws(() => installArguments('funcloom', '1.0; rm -rf /'), /Unsupported/);
 });

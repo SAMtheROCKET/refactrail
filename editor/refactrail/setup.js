@@ -1,7 +1,7 @@
 'use strict';
 
 // Finding the Python interpreter and installing the tool into it. Shared
-// verbatim by the FuncLoom and RefacTrail extensions.
+// verbatim by the FuncLoom, RefacTrail and FlowBlueprint extensions.
 
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -44,7 +44,7 @@ function defaultPython(platform) {
 }
 
 function installArguments(tool, version) {
-    if (!['funcloom', 'refactrail'].includes(tool) || !/^[0-9A-Za-z.]+$/.test(version)) {
+    if (!['funcloom', 'refactrail', 'flowblueprint'].includes(tool) || !/^[0-9A-Za-z.]+$/.test(version)) {
         throw new Error('Unsupported tool or version');
     }
     return ['-m', 'pip', 'install', `${tool}==${version}`];
