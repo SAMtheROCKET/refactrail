@@ -29,6 +29,12 @@ jobs:
       - run: python -m pip install ./rust/fallback
       - run: python -m pip install -e ".[release]"
       - run: python -m unittest discover -s tests
+      # The release check (scripts/verify.py) requires the strict profile
+      # to pass on RefacTrail's own source; check it on every push.
+      - name: Strict self-check
+        run: python -m refactrail check src --profile strict --no-cache
+      - name: Ruff-compatible lint of the source
+        run: python -m refactrail lint src --select E4,E7,F --no-cache
       - run: python -m build
       - run: python -m twine check --strict dist/*
   editor:
