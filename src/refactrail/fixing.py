@@ -1,5 +1,6 @@
 """The fix command: apply safe fixes in place or show them as a diff."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 import os
@@ -8,6 +9,7 @@ import tempfile
 import difflib
 from pathlib import Path
 
+from refactrail.engine import parse_quietly_node
 from refactrail.fixes import FixOutcome, apply_safe_fixes
 from refactrail.models import Settings
 from refactrail.source import decode_source_text
@@ -71,12 +73,16 @@ def detect_line_ending_str(text_str: str) -> str:
     return "\n"
 
 
-def fix_file(path_str: str, settings_info: Settings) -> FileFix:
+def fix_file(path_str: str, settings_info: Settings,
+             fixer: Callable[[str, str], FixOutcome] | None = None
+             ) -> FileFix:
     """Compute the fixes for one file without writing anything.
 
     Args:
         path_str (str): File path.
         settings_info (Settings): Enabled codes and limits.
+        fixer (Callable | None): (text, path) -> outcome with .text and
+            .applied; the profile's safe fixes when None.
     Returns:
         FileFix: Original text, fix outcome and how to write it back.
     Warnings:
@@ -93,12 +99,15 @@ def fix_file(path_str: str, settings_info: Settings) -> FileFix:
     ending_str = detect_line_ending_str(text_str)
     normalized_str = text_str.replace("\r\n", "\n").replace("\r", "\n")
     try:
-        compile(normalized_str, path_str, "exec", dont_inherit=True)
+        parse_quietly_node(normalized_str, path_str)
     except (SyntaxError, ValueError) as error:
         return FileFix(path_str, normalized_str, None, ending_str,
                        skip_reason=f"syntax error: {error}")
-    return FileFix(path_str, normalized_str,
-                   apply_safe_fixes(normalized_str, path_str, settings_info),
+    if fixer is None:
+        outcome = apply_safe_fixes(normalized_str, path_str, settings_info)
+    else:
+        outcome = fixer(normalized_str, path_str)
+    return FileFix(path_str, normalized_str, outcome,
                    ending_str, raw_bytes.startswith(UTF8_BOM_BYTES),
                    source_sha256=sha256(raw_bytes).hexdigest())
 
@@ -136,7 +145,7 @@ def write_fix_none(file_fix: FileFix) -> None:
         raise ValueError("No validated fix is available")
     source_path = Path(file_fix.path)
     verify_original_none(source_path, file_fix.source_sha256)
-    compile(file_fix.outcome.text, file_fix.path, "exec", dont_inherit=True)
+    parse_quietly_node(file_fix.outcome.text, file_fix.path)
     text_str = file_fix.outcome.text.replace("\n", file_fix.line_ending)
     output_bytes = ((UTF8_BOM_BYTES if file_fix.has_bom else b"")
                     + text_str.encode("utf-8"))

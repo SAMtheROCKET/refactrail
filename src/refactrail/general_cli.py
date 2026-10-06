@@ -1,18 +1,23 @@
 """Thin commands for independent correctness checking and formatting."""
 
 import argparse
+import functools
 import difflib
 import json
 from pathlib import Path
 import sys
 
+from refactrail.compat_fixes import FIXABLE_CODES_TUPLE, fix_compat_text
 from refactrail.config import load_settings
 from refactrail.correctness_batch import (
     check_correctness_paths_list, is_native_selection_bool,
 )
 from refactrail.discovery import discover_python_files_list
 from refactrail.engine import ENGINES_TUPLE, resolve_engine_str
-from refactrail.fixing import verify_original_none
+from refactrail.fixing import (
+    fix_file, render_diff_str, verify_original_none, write_fix_none,
+)
+from refactrail.models import Settings
 from refactrail.formatting import FormatPlan, plan_format, write_format_none
 from refactrail.report import render_json_str, render_text_str
 from refactrail.sarif import render_sarif_str
@@ -41,6 +46,12 @@ def add_general_commands_none(
     lint_parser.add_argument("--engine", default="auto",
                              choices=ENGINES_TUPLE,
                              help="auto uses Rust when installed")
+    fix_group = lint_parser.add_mutually_exclusive_group()
+    fix_group.add_argument("--fix", action="store_true",
+                           help="apply safe fixes (F401, F541, F632, E703,"
+                                " E713, E714), then report what remains")
+    fix_group.add_argument("--diff", action="store_true",
+                           help="show the safe fixes; change nothing")
     format_parser = commands_info.add_parser(
         "format", help="Preview independent whitespace formatting")
     format_parser.add_argument("paths", nargs="*", default=["."])
@@ -108,6 +119,15 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
             raise ValueError("lint checks RC, E and F codes; the Rust "
                              "engine has no other selections")
         engine_str = "python"
+    if arguments.fix or arguments.diff:
+        candidates_list = sorted({
+            finding.path for finding in check_correctness_paths_list(
+                files_list, select_tuple, ignore_tuple, arguments.jobs, None,
+                engine_str) if finding.code in FIXABLE_CODES_TUPLE})
+        pending_bool = run_lint_fixes_bool(candidates_list, select_tuple,
+                                           ignore_tuple, arguments.diff)
+        if arguments.diff:
+            return int(pending_bool)
     findings_list = check_correctness_paths_list(
         files_list, select_tuple, ignore_tuple, arguments.jobs, cache_path,
         engine_str)
@@ -119,6 +139,47 @@ def run_lint_int(arguments: argparse.Namespace) -> int:
         output_str = render_text_str(findings_list, len(files_list))
     sys.stdout.write(output_str)
     return int(bool(findings_list))
+
+
+def run_lint_fixes_bool(files_list: list[str],
+                        select_tuple: tuple[str, ...],
+                        ignore_tuple: tuple[str, ...],
+                        diff_bool: bool) -> bool:
+    """Apply (or show) safe fixes for the selected lint findings.
+
+    Args:
+        files_list (list[str]): Files to fix.
+        select_tuple (tuple[str, ...]): Selected code prefixes.
+        ignore_tuple (tuple[str, ...]): Ignored code prefixes.
+        diff_bool (bool): Show a diff instead of writing.
+    Returns:
+        bool: True when any file has (or had) fixes.
+    Warnings:
+        Files are changed in place unless diff_bool is set; each file
+        is verified before it is written.
+    """
+    fixer = functools.partial(fix_compat_text, select_tuple=select_tuple,
+                              ignore_tuple=ignore_tuple)
+    changed_int = 0
+    for path_str in files_list:
+        file_fix = fix_file(path_str, Settings(), fixer)
+        if file_fix.skip_reason:
+            continue
+        for note_str in file_fix.outcome.notes:
+            sys.stderr.write(f"{path_str}: note: {note_str}\n")
+        if not file_fix.changed_bool:
+            continue
+        changed_int += 1
+        if diff_bool:
+            sys.stdout.write(render_diff_str(file_fix))
+        else:
+            write_fix_none(file_fix)
+            sys.stderr.write("".join(
+                f"{path_str}: fixed {line_str}\n"
+                for line_str in file_fix.outcome.applied))
+    verb_str = "would be fixed" if diff_bool else "fixed"
+    sys.stderr.write(f"{changed_int} file(s) {verb_str}.\n")
+    return bool(changed_int)
 
 
 def render_format_diff_str(plan_info: FormatPlan) -> str:

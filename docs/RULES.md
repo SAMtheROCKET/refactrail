@@ -84,6 +84,42 @@ walks expressions without building child lists. Profiling shows the
 remaining time in tokenizing and parsing (about 27%), the scope checker
 and other tree walks (about 34%) and the compiler checks (about 12%).
 
+### Safe fixes (`lint --fix`, `lint --diff`)
+
+`lint --fix` rewrites selected, unsuppressed findings of six codes;
+`--diff` prints the same changes without writing. Other findings are
+reported as usual afterwards.
+
+| Code | Fix |
+| --- | --- |
+| F401 | Remove the unused name, or the whole import statement. A block left empty gets `pass` (keeping the last statement's trailing comment). Parentheses, line breaks and trailing commas of the remaining names stay. |
+| F541 | Drop the `f` prefix; `{{` and `}}` become `{` and `}`. |
+| F632 | `is` / `is not` with a literal become `==` / `!=` (one-operator comparisons). |
+| E703 | Delete the semicolon; spaces before it stay, as in Ruff. |
+| E713, E714 | `not x in y` becomes `x not in y`, `not x is y` becomes `x is not y`; brackets that only wrapped the comparison are removed. |
+
+Safety rules: F401 is not fixed in `__init__.py` files and `.pyi` stubs
+(imports may be re-exports), in a `try` body that handles `ImportError`
+(the import is an availability check), on a line shared with another
+statement, or when a cut would delete a comment; each such finding is
+reported as a note. Removing an import also removes its import-time side
+effects, as Ruff's fix does. Every pass is verified: the fixed text must
+compile to exactly the original syntax tree with the intended changes
+(f-strings of constants compared as the strings they equal); fixes that
+fail are left out with a note, and overlapping fixes wait for the next
+pass (for example `not x is ""` becomes `x != ""` in two passes). Files
+are written atomically, keeping line endings and a BOM, and only if they
+are unchanged since they were read.
+
+Oracle comparison with Ruff 0.16.9 (`--select F401,F541,F632,E703,E713,E714
+--fix` on copies): on the Python 3.12 standard library both change the
+same 56 files and every fixed file is byte-identical. On the 6,988-file
+corpus RefacTrail changes 443 files and Ruff 471; apart from stubs and
+notebooks (not fixed by `lint`), 8 files differ: guarded imports that
+RefacTrail keeps (5), two F401 findings where the linters disagree, and
+one multi-line condition whose line break RefacTrail keeps. No pass was
+discarded.
+
 ## Scope and formatting expansion (0.3.0a0)
 
 RC201 reports a loaded name for which compiler lexical scope information

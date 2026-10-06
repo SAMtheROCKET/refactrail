@@ -86,6 +86,8 @@ Nothing is uploaded by these local tools.
 ```powershell
 python -m refactrail lint src
 python -m refactrail lint src --output-format sarif
+python -m refactrail lint src --select E4,E7,F --diff   # preview safe fixes
+python -m refactrail lint src --select E4,E7,F --fix    # apply them
 python -m refactrail format examples/general_demo.py --diff
 python -m refactrail format examples/general_demo.py --check
 python -m refactrail format examples/general_demo.py --write
@@ -97,7 +99,11 @@ codes (same numbers, so `# noqa: E701` comments carry over), including
 unused imports (F401), undefined names (F821) and unused variables
 (F841). Across Ruff's whole default rule set they agree with Ruff on
 19,827 of 19,830 findings in a 6,988-file corpus; see
-[the rules](docs/RULES.md). `format` uses an independent CPython AST/tokenize implementation; its
+[the rules](docs/RULES.md). `lint --fix` (or `--diff` to preview) applies
+safe fixes for unused imports (F401), f-strings without placeholders
+(F541), `is` with literals (F632), trailing semicolons (E703) and
+negated membership and identity tests (E713, E714); on the standard
+library the fixed files are byte-identical to Ruff's `--fix`. `format` uses an independent CPython AST/tokenize implementation; its
 default is a read-only preview. It makes bounded whitespace edits and retains
 literal/comment spelling, directives, BOM and original line endings.
 Use `--line-length 79` for bracketed comma-group wrapping. Explicit Python
