@@ -103,7 +103,9 @@ unused imports (F401), undefined names (F821) and unused variables
 safe fixes for unused imports (F401), f-strings without placeholders
 (F541), `is` with literals (F632), trailing semicolons (E703) and
 negated membership and identity tests (E713, E714); on the standard
-library the fixed files are byte-identical to Ruff's `--fix`. `format` uses an independent CPython AST/tokenize implementation; its
+library the fixed files are byte-identical to Ruff's `--fix`. The commands,
+options, codes, exit codes and output formats that stay stable through
+the beta are listed in [stable interfaces](docs/INTERFACES.md). `format` uses an independent CPython AST/tokenize implementation; its
 default is a read-only preview. It makes bounded whitespace edits and retains
 literal/comment spelling, directives, BOM and original line endings.
 Use `--line-length 79` for bracketed comma-group wrapping. Explicit Python
