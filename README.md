@@ -29,9 +29,8 @@ Built for developers, data scientists and teams that want clean,
 consistent code; pair it with FuncLoom to turn scripts and notebooks into
 functions and FlowBlueprint to draw the architecture.
 
-**Status: alpha.** The latest release on PyPI is 0.4.0a0 (experimental
-alpha). The main branch has newer, unreleased features (see
-[What's new on main](#whats-new-on-main-not-yet-on-pypi)). Python 3.12 or
+**Status: alpha.** The latest release on PyPI is 0.5.0a0 (experimental
+alpha; see [what's new](#whats-new-in-050a0)). Python 3.12 or
 newer is required. RefacTrail has its own package, CLI and VS Code extension. It
 installs FuncLoom automatically for its rewrite API; FuncLoom has no
 dependency on RefacTrail. No LLM, account or network is needed at runtime.
@@ -74,7 +73,7 @@ and offers to install RefacTrail there with one click.
 ```yaml
 repos:
   - repo: https://github.com/SAMtheROCKET/refactrail
-    rev: v0.4.0a0
+    rev: v0.5.0a0
     hooks:
       - id: refactrail-lint
       - id: refactrail-format
@@ -83,12 +82,7 @@ repos:
 `refactrail-format-check` (fails instead of rewriting) and
 `refactrail-check` are also available.
 
-## What's new on main (not yet on PyPI)
-
-These features are on the main branch and will be in the next release.
-To try them now: `pip install "git+https://github.com/SAMtheROCKET/refactrail"`
-(the Python engine is used until a matching Rust core is released; the
-findings are the same).
+## What's new in 0.5.0a0
 
 - **Ruff-compatible rules:** `refactrail lint --select E4,E7,F` checks
   Ruff's default rule set (pycodestyle E4/E7/E9 and Pyflakes F codes)
@@ -276,7 +270,7 @@ environment containing these packages, and use a trusted workspace.
 
 ```powershell
 python scripts/verify.py
-python scripts/release_check.py --output dist/0.4.0a0 --dependency-wheel path/to/funcloom-0.10.3a0-py3-none-any.whl
+python scripts/release_check.py --output dist/0.5.0a0 --dependency-wheel path/to/funcloom-0.10.4a0-py3-none-any.whl
 ```
 
 The release script builds and checks a wheel and source archive, installs

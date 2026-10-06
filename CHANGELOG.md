@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0a0 - Ruff-compatible rules, safe fixes and a faster engine, 2026-10-07
 
 - The engine contract is now 5 (Ruff-compatible codes). An older
   refactrail-core, such as 0.4.0a0 from PyPI next to RefacTrail installed

@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-pub const VERSION: &str = "0.4.0a0";
+pub const VERSION: &str = "0.5.0a0";
 const USAGE: &str = "usage: refactrail-native check [paths ...] [--profile {standard,strict}] [--line-length N]
                                 [--select CODES] [--ignore CODES]
                                 [--output-format {text,json,github,sarif}] [--statistics]
