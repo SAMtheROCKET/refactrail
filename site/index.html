@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RefacTrail: Python linter, formatter and auto-refactor tool with a Rust engine</title>
+<meta name="description" content="RefacTrail is a free, open-source Python linter, formatter and auto-refactor tool. It implements Ruff&#x27;s default rule set with the same codes, adds verified safe fixes, a formatter and naming, docstring and function-size rules, and runs on identical pure-Python and Rust engines.">
+<meta name="keywords" content="python linter, python auto refactor, auto-refactor, python formatter, ruff compatible, pyflakes, pycodestyle, unused imports, safe fixes, code quality, sarif, rust python linter">
+<meta name="author" content="Sambit Supriya Dash">
+<link rel="canonical" href="https://samtherocket.github.io/refactrail/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="RefacTrail: Python linter, formatter and auto-refactor tool with a Rust engine">
+<meta property="og:description" content="RefacTrail is a free, open-source Python linter, formatter and auto-refactor tool. It implements Ruff&#x27;s default rule set with the same codes, adds verified safe fixes, a formatter and naming, docstring and function-size rules, and runs on identical pure-Python and Rust engines.">
+<meta property="og:url" content="https://samtherocket.github.io/refactrail/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RefacTrail: Python linter, formatter and auto-refactor tool with a Rust engine">
+<meta name="twitter:description" content="RefacTrail is a free, open-source Python linter, formatter and auto-refactor tool. It implements Ruff&#x27;s default rule set with the same codes, adds verified safe fixes, a formatter and naming, docstring and function-size rules, and runs on identical pure-Python and Rust engines.">
+<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "RefacTrail", "description": "RefacTrail is a free, open-source Python linter, formatter and auto-refactor tool. It implements Ruff's default rule set with the same codes, adds verified safe fixes, a formatter and naming, docstring and function-size rules, and runs on identical pure-Python and Rust engines.", "applicationCategory": "DeveloperApplication", "operatingSystem": "Windows, macOS, Linux", "softwareRequirements": "Python 3.12 or newer", "license": "https://opensource.org/licenses/MIT", "url": "https://samtherocket.github.io/refactrail/", "codeRepository": "https://github.com/SAMtheROCKET/refactrail", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "author": {"@type": "Person", "name": "Sambit Supriya Dash", "url": "https://github.com/SAMtheROCKET"}, "keywords": "python linter, python auto refactor, auto-refactor, python formatter, ruff compatible, pyflakes, pycodestyle, unused imports, safe fixes, code quality, sarif, rust python linter", "downloadUrl": "https://pypi.org/project/refactrail/"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "Is RefacTrail compatible with Ruff?", "acceptedAnswer": {"@type": "Answer", "text": "It implements Ruff's default rule set with the same codes and # noqa comments; on a 6,988-file corpus 19,827 of Ruff's 19,830 findings match. Ruff is still faster."}}, {"@type": "Question", "name": "How do I remove unused imports automatically?", "acceptedAnswer": {"@type": "Answer", "text": "Run refactrail lint src --select F401 --fix; preview with --diff. Imports in __init__.py, stubs and ImportError guards are left alone."}}, {"@type": "Question", "name": "Does it need Rust installed?", "acceptedAnswer": {"@type": "Answer", "text": "No. Wheels include the native engine for common platforms, with a pure-Python fallback."}}, {"@type": "Question", "name": "Does it run my code?", "acceptedAnswer": {"@type": "Answer", "text": "No. Analysis never imports or executes the code it checks."}}, {"@type": "Question", "name": "Is it free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes, MIT-licensed and on PyPI."}}]}</script>
+<style>
+:root{--bg:#fbfbfa;--fg:#1c2128;--muted:#5a6270;--card:#ffffff;
+--line:#e1e4ea;--code:#f2f4f7;--accent:#b4541c}
+@media (prefers-color-scheme:dark){:root{--bg:#111418;--fg:#e8eaee;
+--muted:#a3abb8;--card:#181c22;--line:#2a3039;--code:#1f242c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:980px;margin:0 auto;padding:32px 20px 64px}
+header nav{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;
+color:var(--muted);margin-bottom:40px}
+a{color:var(--accent)}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.15;margin:0 0 12px;
+letter-spacing:-.01em}
+.lead{font-size:19px;color:var(--muted);max-width:720px;margin:0 0 24px}
+.status{display:inline-block;font-size:13px;border:1px solid var(--line);
+border-radius:999px;padding:2px 12px;color:var(--muted);margin-bottom:20px}
+pre,code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;
+padding:14px 16px;overflow-x:auto;margin:0}
+code{font-size:14px}
+.commands{display:grid;gap:10px;margin:28px 0}
+.command{display:grid;gap:4px}
+.command span{color:var(--muted);font-size:14px}
+h2{font-size:24px;margin:48px 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+padding:16px 18px}
+.card h3{margin:0 0 6px;font-size:17px}
+.card p{margin:0;color:var(--muted);font-size:15px}
+figure{margin:32px 0 0;background:#fff;border:1px solid var(--line);
+border-radius:10px;padding:12px;overflow-x:auto}
+figure img{display:block;max-width:100%;height:auto;margin:0 auto}
+figcaption{font-size:13px;color:#5a6270;text-align:center;margin-top:8px}
+details{border-bottom:1px solid var(--line);padding:12px 0}
+summary{cursor:pointer;font-weight:600}
+details p{color:var(--muted);margin:8px 0 0}
+footer{margin-top:56px;font-size:14px;color:var(--muted);
+border-top:1px solid var(--line);padding-top:20px}
+.button{display:inline-block;background:var(--accent);color:#fff;
+text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;
+margin-right:10px}
+.button.secondary{background:transparent;color:var(--accent);
+border:1px solid var(--accent)}
+</style>
+</head>
+<body>
+<main>
+<header><nav><a href="https://samtherocket.github.io/funcloom/">FuncLoom</a> <strong>RefacTrail</strong> <a href="https://samtherocket.github.io/flowblueprint/">FlowBlueprint</a></nav></header>
+<span class="status">0.4.0a0 on PyPI, experimental alpha</span>
+<h1>RefacTrail</h1>
+<p class="lead">The Python refactorizer: lint, format and refactor with verified fixes and independent Python and Rust engines.</p>
+<p><a class="button" href="https://github.com/SAMtheROCKET/refactrail">GitHub</a><a class="button secondary" href="https://pypi.org/project/refactrail/">PyPI</a></p>
+<pre><code>pip install refactrail</code></pre>
+<div class="commands"><div class="command"><pre><code>refactrail lint src --select E4,E7,F</code></pre><span>Ruff&#x27;s default rules: unused imports, undefined names and more</span></div><div class="command"><pre><code>refactrail lint src --select E4,E7,F --fix</code></pre><span>verified safe fixes, byte-identical to Ruff on the stdlib</span></div><div class="command"><pre><code>refactrail format src --diff</code></pre><span>the independent formatter, as a preview</span></div><div class="command"><pre><code>refactrail check src</code></pre><span>naming, docstrings, annotations and function size</span></div></div>
+
+<h2>What it does</h2>
+<div class="grid"><div class="card"><h3>Ruff-compatible codes</h3><p>Ruff&#x27;s default rule set (E4, E7, E9, F) with the same numbers, so existing <code># noqa</code> comments carry over; 19,827 of 19,830 findings agree on a 6,988-file corpus.</p></div><div class="card"><h3>Verified safe fixes</h3><p><code>lint --fix</code> removes unused imports and fixes F541, F632, E703, E713 and E714; every pass is checked against the expected syntax tree.</p></div><div class="card"><h3>Two identical engines</h3><p>A pure-Python engine and a Rust engine with its own parser give identical findings; the engine changes only speed.</p></div><div class="card"><h3>Refactoring rules</h3><p>Verb-first function names, docstrings with Args and Returns, annotations and function-size limits, with bounded fixes.</p></div><div class="card"><h3>CI ready</h3><p>Text, JSON, SARIF and GitHub annotations; documented exit codes; a pre-commit hook and VS Code extension.</p></div><div class="card"><h3>Safe writes</h3><p>Files change only after the new text compiles and passes its check, atomically, with line endings and BOM kept.</p></div></div>
+<h2>Who it is for</h2>
+<div class="grid"><div class="card"><h3>Developers</h3><p>catch unused imports and undefined names, then fix them safely.</p></div><div class="card"><h3>Teams</h3><p>enforce naming, docstrings and function size in CI with SARIF output.</p></div><div class="card"><h3>Data scientists</h3><p>clean notebooks and scripts before sharing them.</p></div><div class="card"><h3>Students</h3><p>learn readable Python with clear, located findings.</p></div></div>
+<h2>Questions</h2>
+<details><summary>Is RefacTrail compatible with Ruff?</summary><p>It implements Ruff&#x27;s default rule set with the same codes and <code># noqa</code> comments; on a 6,988-file corpus 19,827 of Ruff&#x27;s 19,830 findings match. Ruff is still faster.</p></details><details><summary>How do I remove unused imports automatically?</summary><p>Run <code>refactrail lint src --select F401 --fix</code>; preview with <code>--diff</code>. Imports in __init__.py, stubs and ImportError guards are left alone.</p></details><details><summary>Does it need Rust installed?</summary><p>No. Wheels include the native engine for common platforms, with a pure-Python fallback.</p></details><details><summary>Does it run my code?</summary><p>No. Analysis never imports or executes the code it checks.</p></details><details><summary>Is it free?</summary><p>Yes, MIT-licensed and on PyPI.</p></details>
+<h2>One family of tools</h2>
+<div class="grid"><div class="card"><h3><a href="https://samtherocket.github.io/funcloom/">FuncLoom</a></h3><p>the functionizer: scripts and notebooks to functions and packages</p></div><div class="card"><h3><a href="https://samtherocket.github.io/refactrail/">RefacTrail</a></h3><p>the refactorizer: linter, formatter and verified refactoring</p></div><div class="card"><h3><a href="https://samtherocket.github.io/flowblueprint/">FlowBlueprint</a></h3><p>the architect: code to architecture diagrams</p></div></div>
+<footer>RefacTrail is MIT-licensed open source by
+Sambit Supriya Dash. Python 3.12 or newer. No AI model, account or network
+connection is needed. <a href="https://github.com/SAMtheROCKET/refactrail">Source on GitHub</a>.</footer>
+</main>
+</body>
+</html>
