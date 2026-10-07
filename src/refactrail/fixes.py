@@ -9,6 +9,7 @@ from funcloom import refine_source_text
 from funcloom.doc_facts import infer_returned_type_str
 
 from refactrail.facts import FUNCTION_NODES_TUPLE
+from refactrail.main_fixes import move_into_main_tuple
 from refactrail.models import Settings, is_code_enabled_bool
 from refactrail.naming_fixes import apply_naming_fixes_tuple
 
@@ -210,6 +211,8 @@ def apply_safe_fixes(
         outcome.applied.append(f"RT102/RT201: renamed "
                                f"{', '.join(renames_list)}")
     outcome.notes += rename_notes_list
+    if is_code_enabled_bool(settings_info, "RT504"):
+        apply_main_fix_none(outcome, path_str)
     if is_code_enabled_bool(settings_info, "RT402"):
         outcome.text, names_list = add_none_returns_tuple(outcome.text)
         if names_list:
@@ -218,6 +221,26 @@ def apply_safe_fixes(
     apply_funcloom_fixes_none(outcome, path_str, settings_info)
     compile(outcome.text, path_str, "exec", dont_inherit=True)
     return outcome
+
+
+def apply_main_fix_none(outcome: FixOutcome, path_str: str) -> None:
+    """Move a script's top-level code into main() (RT504).
+
+    Args:
+        outcome (FixOutcome): Fix state, updated in place.
+        path_str (str): The file's path.
+    Returns:
+        None: Updates outcome.text and applied, or adds a note.
+    Warnings:
+        Importing the file no longer runs the moved code.
+    """
+    outcome.text, reason_str = move_into_main_tuple(outcome.text, path_str)
+    if reason_str:
+        outcome.notes.append(f"RT504: code kept at module level: "
+                             f"{reason_str}")
+    else:
+        outcome.applied.append("RT504: top-level code moved into main(), "
+                               "run from a main guard")
 
 
 def apply_funcloom_fixes_none(

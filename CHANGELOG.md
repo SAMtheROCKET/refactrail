@@ -15,6 +15,12 @@
     addition to `-> None`.
   - RT301: docstrings describe what the code shows (FuncLoom's new
     `doc_facts`) instead of "Not described in the original code".
+  - RT504: a script's trailing top-level code moves into `def main()`,
+    run from `if __name__ == "__main__":`. Refused for package modules,
+    when a function reads a name that code sets, for global/eval/star
+    imports, multi-line strings or an existing main guard; the result
+    must parse to the same statements inside main(). 17 of the swept
+    files were moved, none failed the check.
   Renames are refused on collisions, closures and dynamic namespace use,
   and verified by mapping the new tree back to the original. Over 3,205
   files of the standard library and 129 packages: 1,288 renames and

@@ -243,6 +243,11 @@ python -m refactrail fix src
 - **Return types (RT402):** `-> None` when a function never returns a
   value; `-> list`, `-> dict`, `-> set`, `-> tuple` or `-> str` when its
   only return gives a value built from one literal type.
+- **Script code into main() (RT504):** a script's top-level code after
+  its functions moves into `def main()`, run from
+  `if __name__ == "__main__":`, so importing the file no longer runs
+  it. Refused for package modules, when a function reads a name that
+  code sets, or when the file already has a main guard.
 - **Docstrings (RT301)** that say what the code does ("Load sales. It
   opens path, reads CSV rows and loops over reader."; "path: Passed to
   open()."; "list: rows.").
