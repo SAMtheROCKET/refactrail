@@ -25,11 +25,11 @@ struct FormatOptions {
 }
 
 /// One validated proposal (FormatPlan).
-struct Plan {
-    path: String,
-    original: Vec<u8>,
-    output: Vec<u8>,
-    digest: String,
+pub struct Plan {
+    pub path: String,
+    pub original: Vec<u8>,
+    pub output: Vec<u8>,
+    pub digest: String,
 }
 
 fn parse_format_options(arguments: &[String]) -> Result<FormatOptions, String> {
@@ -146,7 +146,7 @@ fn plan_diff(plan: &Plan) -> String {
 }
 
 /// verify_original_none: the file is unchanged and not a link.
-fn verify_original(path: &str, digest: &str) -> Result<(), String> {
+pub fn verify_original(path: &str, digest: &str) -> Result<(), String> {
     let file = Path::new(path);
     let current = std::fs::read(file).map_err(|error| format!("{path}: {error}"))?;
     if is_linked(file) || sha256_hex(&current) != digest {
@@ -156,7 +156,7 @@ fn verify_original(path: &str, digest: &str) -> Result<(), String> {
 }
 
 /// write_atomically_none: temporary file, fsync, permissions, replace.
-fn write_atomically(plan: &Plan) -> Result<(), String> {
+pub fn write_atomically(plan: &Plan) -> Result<(), String> {
     let file = Path::new(&plan.path);
     let folder = file.parent().filter(|parent| !parent.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let permissions = std::fs::metadata(file).map_err(|error| error.to_string())?.permissions();

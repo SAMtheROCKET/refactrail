@@ -92,6 +92,7 @@ choice never changes results, only speed.
   `python -m refactrail`. Import paths may move before 1.0.
 - The `refactrail_core` extension module's functions, which serve the
   CLI.
-- The native `refactrail-native` binary's command set, which does not
-  yet include `fix` or `lint --fix`.
+- The native `refactrail-native` binary's command set. It has every
+  command except `fix`, whose refactoring edits are built on FuncLoom
+  and need Python (the binary says so and points to `refactrail fix`).
 - The text of messages (codes and positions are stable).

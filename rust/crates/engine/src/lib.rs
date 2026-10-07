@@ -3,6 +3,7 @@
 //! the PyO3 module (`refactrail-core`) and the native command line.
 
 mod bindings_count;
+pub mod compat_fix;
 mod compat_pycodestyle;
 mod compat_pyflakes;
 mod compat_scope;

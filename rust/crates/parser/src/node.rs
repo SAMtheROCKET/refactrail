@@ -11,7 +11,7 @@ thread_local! {
 }
 
 /// Source span: 1-based lines, UTF-8 byte columns (as CPython's `ast`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 pub struct Loc {
     pub line: u32,
     pub col: u32,

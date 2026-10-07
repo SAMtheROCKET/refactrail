@@ -1056,3 +1056,350 @@ pub fn walk_comprehension<'a, V: Visitor<'a>>(visitor: &mut V, node: &'a Compreh
         for item in &node.ifs { visitor.visit_expr(item); }
 }
 
+/// The mutable twin of `Visitor`: each default visits the node's
+/// children in field order, so a rewrite can change any node.
+pub trait VisitorMut: Sized {
+    fn visit_stmt_mut(&mut self, node: &mut Stmt) { walk_stmt_mut(self, node) }
+    fn visit_expr_mut(&mut self, node: &mut Expr) { walk_expr_mut(self, node) }
+    fn visit_pattern_mut(&mut self, node: &mut Pattern) { walk_pattern_mut(self, node) }
+    fn visit_type_param_mut(&mut self, node: &mut TypeParam) { walk_type_param_mut(self, node) }
+    fn visit_excepthandler_mut(&mut self, node: &mut ExceptHandler) { walk_excepthandler_mut(self, node) }
+    fn visit_arguments_mut(&mut self, node: &mut Arguments) { walk_arguments_mut(self, node) }
+    fn visit_arg_mut(&mut self, node: &mut Arg) { walk_arg_mut(self, node) }
+    fn visit_keyword_mut(&mut self, node: &mut Keyword) { walk_keyword_mut(self, node) }
+    fn visit_alias_mut(&mut self, node: &mut Alias) { walk_alias_mut(self, node) }
+    fn visit_withitem_mut(&mut self, node: &mut WithItem) { walk_withitem_mut(self, node) }
+    fn visit_match_case_mut(&mut self, node: &mut MatchCase) { walk_match_case_mut(self, node) }
+    fn visit_comprehension_mut(&mut self, node: &mut Comprehension) { walk_comprehension_mut(self, node) }
+}
+
+pub fn walk_stmt_mut<V: VisitorMut>(visitor: &mut V, node: &mut Stmt) {
+    match &mut node.kind {
+        StmtKind::FunctionDef { args, body, decorator_list, returns, type_params, .. } => {
+        visitor.visit_arguments_mut(args);
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in decorator_list.iter_mut() { visitor.visit_expr_mut(item); }
+        if let Some(item) = returns { visitor.visit_expr_mut(item); }
+        for item in type_params.iter_mut() { visitor.visit_type_param_mut(item); }
+        }
+        StmtKind::AsyncFunctionDef { args, body, decorator_list, returns, type_params, .. } => {
+        visitor.visit_arguments_mut(args);
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in decorator_list.iter_mut() { visitor.visit_expr_mut(item); }
+        if let Some(item) = returns { visitor.visit_expr_mut(item); }
+        for item in type_params.iter_mut() { visitor.visit_type_param_mut(item); }
+        }
+        StmtKind::ClassDef { bases, keywords, body, decorator_list, type_params, .. } => {
+        for item in bases.iter_mut() { visitor.visit_expr_mut(item); }
+        for item in keywords.iter_mut() { visitor.visit_keyword_mut(item); }
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in decorator_list.iter_mut() { visitor.visit_expr_mut(item); }
+        for item in type_params.iter_mut() { visitor.visit_type_param_mut(item); }
+        }
+        StmtKind::Return { value } => {
+        if let Some(item) = value { visitor.visit_expr_mut(item); }
+        }
+        StmtKind::Delete { targets } => {
+        for item in targets.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        StmtKind::Assign { targets, value, .. } => {
+        for item in targets.iter_mut() { visitor.visit_expr_mut(item); }
+        visitor.visit_expr_mut(value);
+        }
+        StmtKind::TypeAlias { name, type_params, value } => {
+        visitor.visit_expr_mut(name);
+        for item in type_params.iter_mut() { visitor.visit_type_param_mut(item); }
+        visitor.visit_expr_mut(value);
+        }
+        StmtKind::AugAssign { target, value, .. } => {
+        visitor.visit_expr_mut(target);
+        visitor.visit_expr_mut(value);
+        }
+        StmtKind::AnnAssign { target, annotation, value, .. } => {
+        visitor.visit_expr_mut(target);
+        visitor.visit_expr_mut(annotation);
+        if let Some(item) = value { visitor.visit_expr_mut(item); }
+        }
+        StmtKind::For { target, iter, body, orelse, .. } => {
+        visitor.visit_expr_mut(target);
+        visitor.visit_expr_mut(iter);
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in orelse.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::AsyncFor { target, iter, body, orelse, .. } => {
+        visitor.visit_expr_mut(target);
+        visitor.visit_expr_mut(iter);
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in orelse.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::While { test, body, orelse } => {
+        visitor.visit_expr_mut(test);
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in orelse.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::If { test, body, orelse } => {
+        visitor.visit_expr_mut(test);
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in orelse.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::With { items, body, .. } => {
+        for item in items.iter_mut() { visitor.visit_withitem_mut(item); }
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::AsyncWith { items, body, .. } => {
+        for item in items.iter_mut() { visitor.visit_withitem_mut(item); }
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::Match { subject, cases } => {
+        visitor.visit_expr_mut(subject);
+        for item in cases.iter_mut() { visitor.visit_match_case_mut(item); }
+        }
+        StmtKind::Raise { exc, cause } => {
+        if let Some(item) = exc { visitor.visit_expr_mut(item); }
+        if let Some(item) = cause { visitor.visit_expr_mut(item); }
+        }
+        StmtKind::Try { body, handlers, orelse, finalbody } => {
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in handlers.iter_mut() { visitor.visit_excepthandler_mut(item); }
+        for item in orelse.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in finalbody.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::TryStar { body, handlers, orelse, finalbody } => {
+        for item in body.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in handlers.iter_mut() { visitor.visit_excepthandler_mut(item); }
+        for item in orelse.iter_mut() { visitor.visit_stmt_mut(item); }
+        for item in finalbody.iter_mut() { visitor.visit_stmt_mut(item); }
+        }
+        StmtKind::Assert { test, msg } => {
+        visitor.visit_expr_mut(test);
+        if let Some(item) = msg { visitor.visit_expr_mut(item); }
+        }
+        StmtKind::Import { names } => {
+        for item in names.iter_mut() { visitor.visit_alias_mut(item); }
+        }
+        StmtKind::ImportFrom { names, .. } => {
+        for item in names.iter_mut() { visitor.visit_alias_mut(item); }
+        }
+        StmtKind::Global { .. } => {
+
+        }
+        StmtKind::Nonlocal { .. } => {
+
+        }
+        StmtKind::Expr { value } => {
+        visitor.visit_expr_mut(value);
+        }
+        StmtKind::Pass => {
+
+        }
+        StmtKind::Break => {
+
+        }
+        StmtKind::Continue => {
+
+        }
+    }
+}
+
+pub fn walk_expr_mut<V: VisitorMut>(visitor: &mut V, node: &mut Expr) {
+    match &mut node.kind {
+        ExprKind::BoolOp { values, .. } => {
+        for item in values.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::NamedExpr { target, value } => {
+        visitor.visit_expr_mut(target);
+        visitor.visit_expr_mut(value);
+        }
+        ExprKind::BinOp { left, right, .. } => {
+        visitor.visit_expr_mut(left);
+        visitor.visit_expr_mut(right);
+        }
+        ExprKind::UnaryOp { operand, .. } => {
+        visitor.visit_expr_mut(operand);
+        }
+        ExprKind::Lambda { args, body } => {
+        visitor.visit_arguments_mut(args);
+        visitor.visit_expr_mut(body);
+        }
+        ExprKind::IfExp { test, body, orelse } => {
+        visitor.visit_expr_mut(test);
+        visitor.visit_expr_mut(body);
+        visitor.visit_expr_mut(orelse);
+        }
+        ExprKind::Dict { keys, values } => {
+        for item in keys.iter_mut().flatten() { visitor.visit_expr_mut(item); }
+        for item in values.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::Set { elts } => {
+        for item in elts.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::ListComp { elt, generators } => {
+        visitor.visit_expr_mut(elt);
+        for item in generators.iter_mut() { visitor.visit_comprehension_mut(item); }
+        }
+        ExprKind::SetComp { elt, generators } => {
+        visitor.visit_expr_mut(elt);
+        for item in generators.iter_mut() { visitor.visit_comprehension_mut(item); }
+        }
+        ExprKind::DictComp { key, value, generators } => {
+        visitor.visit_expr_mut(key);
+        visitor.visit_expr_mut(value);
+        for item in generators.iter_mut() { visitor.visit_comprehension_mut(item); }
+        }
+        ExprKind::GeneratorExp { elt, generators } => {
+        visitor.visit_expr_mut(elt);
+        for item in generators.iter_mut() { visitor.visit_comprehension_mut(item); }
+        }
+        ExprKind::Await { value } => {
+        visitor.visit_expr_mut(value);
+        }
+        ExprKind::Yield { value } => {
+        if let Some(item) = value { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::YieldFrom { value } => {
+        visitor.visit_expr_mut(value);
+        }
+        ExprKind::Compare { left, comparators, .. } => {
+        visitor.visit_expr_mut(left);
+        for item in comparators.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::Call { func, args, keywords } => {
+        visitor.visit_expr_mut(func);
+        for item in args.iter_mut() { visitor.visit_expr_mut(item); }
+        for item in keywords.iter_mut() { visitor.visit_keyword_mut(item); }
+        }
+        ExprKind::FormattedValue { value, format_spec, .. } => {
+        visitor.visit_expr_mut(value);
+        if let Some(item) = format_spec { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::Interpolation { value, format_spec, .. } => {
+        visitor.visit_expr_mut(value);
+        if let Some(item) = format_spec { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::JoinedStr { values } => {
+        for item in values.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::TemplateStr { values } => {
+        for item in values.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::Constant { .. } => {
+
+        }
+        ExprKind::Attribute { value, .. } => {
+        visitor.visit_expr_mut(value);
+        }
+        ExprKind::Subscript { value, slice, .. } => {
+        visitor.visit_expr_mut(value);
+        visitor.visit_expr_mut(slice);
+        }
+        ExprKind::Starred { value, .. } => {
+        visitor.visit_expr_mut(value);
+        }
+        ExprKind::Name { .. } => {
+
+        }
+        ExprKind::List { elts, .. } => {
+        for item in elts.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::Tuple { elts, .. } => {
+        for item in elts.iter_mut() { visitor.visit_expr_mut(item); }
+        }
+        ExprKind::Slice { lower, upper, step } => {
+        if let Some(item) = lower { visitor.visit_expr_mut(item); }
+        if let Some(item) = upper { visitor.visit_expr_mut(item); }
+        if let Some(item) = step { visitor.visit_expr_mut(item); }
+        }
+    }
+}
+
+pub fn walk_pattern_mut<V: VisitorMut>(visitor: &mut V, node: &mut Pattern) {
+    match &mut node.kind {
+        PatternKind::MatchValue { value } => {
+        visitor.visit_expr_mut(value);
+        }
+        PatternKind::MatchSingleton { .. } => {
+
+        }
+        PatternKind::MatchSequence { patterns } => {
+        for item in patterns.iter_mut() { visitor.visit_pattern_mut(item); }
+        }
+        PatternKind::MatchMapping { keys, patterns, .. } => {
+        for item in keys.iter_mut() { visitor.visit_expr_mut(item); }
+        for item in patterns.iter_mut() { visitor.visit_pattern_mut(item); }
+        }
+        PatternKind::MatchClass { cls, patterns, kwd_patterns, .. } => {
+        visitor.visit_expr_mut(cls);
+        for item in patterns.iter_mut() { visitor.visit_pattern_mut(item); }
+        for item in kwd_patterns.iter_mut() { visitor.visit_pattern_mut(item); }
+        }
+        PatternKind::MatchStar { .. } => {
+
+        }
+        PatternKind::MatchAs { pattern, .. } => {
+        if let Some(item) = pattern { visitor.visit_pattern_mut(item); }
+        }
+        PatternKind::MatchOr { patterns } => {
+        for item in patterns.iter_mut() { visitor.visit_pattern_mut(item); }
+        }
+    }
+}
+
+pub fn walk_type_param_mut<V: VisitorMut>(visitor: &mut V, node: &mut TypeParam) {
+    match &mut node.kind {
+        TypeParamKind::TypeVar { bound, default_value, .. } => {
+        if let Some(item) = bound { visitor.visit_expr_mut(item); }
+        if let Some(item) = default_value { visitor.visit_expr_mut(item); }
+        }
+        TypeParamKind::ParamSpec { default_value, .. } => {
+        if let Some(item) = default_value { visitor.visit_expr_mut(item); }
+        }
+        TypeParamKind::TypeVarTuple { default_value, .. } => {
+        if let Some(item) = default_value { visitor.visit_expr_mut(item); }
+        }
+    }
+}
+
+pub fn walk_excepthandler_mut<V: VisitorMut>(visitor: &mut V, node: &mut ExceptHandler) {
+        if let Some(item) = &mut node.type_ { visitor.visit_expr_mut(item); }
+        for item in node.body.iter_mut() { visitor.visit_stmt_mut(item); }
+}
+
+pub fn walk_arguments_mut<V: VisitorMut>(visitor: &mut V, node: &mut Arguments) {
+        for item in node.posonlyargs.iter_mut() { visitor.visit_arg_mut(item); }
+        for item in node.args.iter_mut() { visitor.visit_arg_mut(item); }
+        if let Some(item) = &mut node.vararg { visitor.visit_arg_mut(item); }
+        for item in node.kwonlyargs.iter_mut() { visitor.visit_arg_mut(item); }
+        for item in node.kw_defaults.iter_mut().flatten() { visitor.visit_expr_mut(item); }
+        if let Some(item) = &mut node.kwarg { visitor.visit_arg_mut(item); }
+        for item in node.defaults.iter_mut() { visitor.visit_expr_mut(item); }
+}
+
+pub fn walk_arg_mut<V: VisitorMut>(visitor: &mut V, node: &mut Arg) {
+        if let Some(item) = &mut node.annotation { visitor.visit_expr_mut(item); }
+}
+
+pub fn walk_keyword_mut<V: VisitorMut>(visitor: &mut V, node: &mut Keyword) {
+        visitor.visit_expr_mut(&mut node.value);
+}
+
+pub fn walk_alias_mut<V: VisitorMut>(visitor: &mut V, node: &mut Alias) {
+    let _ = (visitor, node);
+}
+
+pub fn walk_withitem_mut<V: VisitorMut>(visitor: &mut V, node: &mut WithItem) {
+        visitor.visit_expr_mut(&mut node.context_expr);
+        if let Some(item) = &mut node.optional_vars { visitor.visit_expr_mut(item); }
+}
+
+pub fn walk_match_case_mut<V: VisitorMut>(visitor: &mut V, node: &mut MatchCase) {
+        visitor.visit_pattern_mut(&mut node.pattern);
+        if let Some(item) = &mut node.guard { visitor.visit_expr_mut(item); }
+        for item in node.body.iter_mut() { visitor.visit_stmt_mut(item); }
+}
+
+pub fn walk_comprehension_mut<V: VisitorMut>(visitor: &mut V, node: &mut Comprehension) {
+        visitor.visit_expr_mut(&mut node.target);
+        visitor.visit_expr_mut(&mut node.iter);
+        for item in node.ifs.iter_mut() { visitor.visit_expr_mut(item); }
+}
+

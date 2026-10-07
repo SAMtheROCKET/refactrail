@@ -11,7 +11,7 @@ use refactrail_engine::Row;
 use std::path::Path;
 
 pub const LINT_USAGE: &str = "usage: refactrail-native lint [paths ...] [--select SELECT] [--ignore IGNORE] [--jobs JOBS]
-                               [--no-cache] [--output-format {text,json,sarif}]";
+                               [--no-cache] [--output-format {text,json,sarif}] [--fix | --diff]";
 pub const SCOPE_USAGE: &str = "usage: refactrail-native scope path";
 
 struct LintOptions {
@@ -20,11 +20,13 @@ struct LintOptions {
     ignore: Vec<String>,
     jobs: usize,
     output: String,
+    fix: bool,
+    diff: bool,
 }
 
 fn parse_lint_options(arguments: &[String]) -> Result<LintOptions, String> {
     let mut options =
-        LintOptions { paths: Vec::new(), select: split_codes("RC"), ignore: Vec::new(), jobs: 1, output: "text".into() };
+        LintOptions { paths: Vec::new(), select: split_codes("RC"), ignore: Vec::new(), jobs: 1, output: "text".into(), fix: false, diff: false };
     let mut index = 0;
     while index < arguments.len() {
         let argument = arguments[index].as_str();
@@ -58,6 +60,13 @@ fn parse_lint_options(arguments: &[String]) -> Result<LintOptions, String> {
                 options.output = format;
             }
             "--no-cache" => {}
+            "--fix" | "--diff" => {
+                let other = if flag == "--fix" { "--diff" } else { "--fix" };
+                if (flag == "--fix" && options.diff) || (flag == "--diff" && options.fix) {
+                    return Err(format!("argument {flag}: not allowed with argument {other}"));
+                }
+                if flag == "--fix" { options.fix = true } else { options.diff = true }
+            }
             _ if argument.starts_with("--") => return Err(format!("unrecognized arguments: {argument}")),
             _ => options.paths.push(argument.to_string()),
         }
@@ -92,6 +101,13 @@ pub fn run_lint(arguments: &[String]) -> Result<i32, String> {
         rows.sort();
         Ok(rows)
     };
+    if options.fix || options.diff {
+        let rows = crate::pool(options.jobs)?.install(check)?;
+        let pending = crate::lint_fix_cmd::run_lint_fixes(&rows, &lint, options.diff)?;
+        if options.diff {
+            return Ok(i32::from(pending));
+        }
+    }
     let rows = crate::pool(options.jobs)?.install(check)?;
     let report = match options.output.as_str() {
         "json" => output::json(&rows),

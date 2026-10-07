@@ -387,7 +387,34 @@ pub fn dump_module(module: &Module, attributes: bool) -> String {
         out.append(body if body else "    let _ = (visitor, node);")
         out.append("}")
         out.append("")
+    out.extend(generate_mut_visitor(kinds, "\n".join(out)))
     return "\n".join(out) + "\n"
+
+
+def generate_mut_visitor(kinds, text):
+    """The Visitor's mutable twin, derived from its generated walks."""
+    out = ["/// The mutable twin of `Visitor`: each default visits the node's",
+           "/// children in field order, so a rewrite can change any node.",
+           "pub trait VisitorMut: Sized {"]
+    for asdl_name, rust in kinds:
+        out.append(f"    fn visit_{asdl_name}_mut(&mut self, node: &mut {rust}) "
+                   f"{{ walk_{asdl_name}_mut(self, node) }}")
+    out.append("}")
+    out.append("")
+    walks = text.split("pub trait Visitor<'a>: Sized {", 1)[1]
+    for block in re.findall(r"^pub fn walk_.*?^}$", walks, re.S | re.M):
+        block = re.sub(r"pub fn walk_(\w+)<'a, V: Visitor<'a>>\(visitor: &mut V, node: &'a (\w+)\)",
+                       r"pub fn walk_\1_mut<V: VisitorMut>(visitor: &mut V, node: &mut \2)", block)
+        block = block.replace("match &node.kind", "match &mut node.kind")
+        block = re.sub(r"visitor\.visit_(\w+)\(", r"visitor.visit_\1_mut(", block)
+        block = block.replace(".iter().flatten()", ".iter_mut().flatten()")
+        block = block.replace(".iter()", ".iter_mut()")
+        block = re.sub(r"for item in &(node\.\w+) ", r"for item in \1.iter_mut() ", block)
+        block = re.sub(r"if let Some\(item\) = &(node\.\w+) ", r"if let Some(item) = &mut \1 ", block)
+        block = re.sub(r"visitor\.(visit_\w+_mut)\(&(node\.\w+)\);", r"visitor.\1(&mut \2);", block)
+        out.append(block)
+        out.append("")
+    return out
 
 
 Path(sys.argv[1]).write_text(generate(), encoding="utf-8")

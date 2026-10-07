@@ -6,8 +6,15 @@
   Python: the same JSON document, diff and refusals (RENAME001-RENAME007)
   as `refactrail rename`, byte-identical on 12,056 requests over the
   standard library and 129 third-party packages
-  (`scripts/rename_parity.py`). The native binary now lacks only `fix`
-  and `lint --fix`.
+  (`scripts/rename_parity.py`).
+- `refactrail-native lint --fix` and `--diff` apply or preview the
+  Ruff-compatible safe fixes (F401, F541, F632, E703, E713, E714)
+  without Python, with the same tree check on every pass. Output and
+  written files are byte-identical to `refactrail lint --fix` on the
+  standard library and 129 packages, CRLF and BOM files included
+  (`scripts/fix_parity.py`); previewing the corpus takes 0.65 s instead
+  of 12.9 s. `refactrail-native fix` explains that RefacTrail's
+  refactoring edits need Python (`refactrail fix`).
 
 ## 0.5.1a0 - VS Code Marketplace and a simpler README, 2026-10-07
 

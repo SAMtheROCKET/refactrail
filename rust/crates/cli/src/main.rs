@@ -12,6 +12,7 @@ mod diff;
 mod format_cmd;
 mod index_cmd;
 mod json;
+mod lint_fix_cmd;
 mod output;
 mod rename_cmd;
 
@@ -287,6 +288,10 @@ fn main() {
         Some("rules") => {
             print!("{RULES_TEXT}");
             return;
+        }
+        Some("fix") => {
+            eprintln!("refactrail: error: fix (RefacTrail's refactoring edits) is built on FuncLoom and needs Python; run `refactrail fix` (pip install refactrail). For Ruff-compatible safe fixes without Python, use `refactrail-native lint --fix`.");
+            std::process::exit(2);
         }
         Some("check") | Some("lint") | Some("scope") | Some("format") | Some("index") | Some("rename") => {}
         _ => {
