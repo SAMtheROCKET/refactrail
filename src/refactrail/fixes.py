@@ -6,9 +6,11 @@ import ast
 import tokenize
 
 from funcloom import refine_source_text
+from funcloom.doc_facts import infer_returned_type_str
 
 from refactrail.facts import FUNCTION_NODES_TUPLE
 from refactrail.models import Settings, is_code_enabled_bool
+from refactrail.naming_fixes import apply_naming_fixes_tuple
 
 STUB_STATEMENTS_TUPLE = (ast.Pass, ast.Raise)
 
@@ -93,8 +95,35 @@ def find_header_colons_dict(source_str: str) -> dict[tuple[int, int], tuple]:
     return colons_dict
 
 
+def choose_return_annotation_str(node: ast.AST) -> str:
+    """The return annotation a function's body makes certain, or "".
+
+    Args:
+        node (ast.AST): Function without a return annotation.
+    Returns:
+        str: "None" when it never returns a value; "list", "dict",
+            "set", "tuple" or "str" when its only value-returning
+            statement is its last one and returns a literal of that
+            type, or a name only ever assigned literals of that type.
+    Warnings:
+        Decorated functions are skipped (decorators may change it).
+    """
+    if node.decorator_list:
+        return ""
+    if is_none_returning_bool(node):
+        return "None"
+    returns_list = [child_node for child_node in ast.walk(node)
+                    if isinstance(child_node, (ast.Return, ast.Yield,
+                                               ast.YieldFrom, ast.Lambda,
+                                               *FUNCTION_NODES_TUPLE))
+                    and child_node is not node]
+    if len(returns_list) != 1 or returns_list[0] is not node.body[-1]:
+        return ""
+    return infer_returned_type_str(node)
+
+
 def add_none_returns_tuple(source_str: str) -> tuple[str, list[str]]:
-    """Add '-> None' to functions that certainly return None (RT402).
+    """Add certain return annotations (RT402): None, list, dict, ...
 
     Args:
         source_str (str): Module text.
@@ -106,32 +135,55 @@ def add_none_returns_tuple(source_str: str) -> tuple[str, list[str]]:
         annotations, or it is discarded.
     """
     tree = ast.parse(source_str)
-    targets_list = [node for node in ast.walk(tree)
+    targets_list = [(node, choose_return_annotation_str(node))
+                    for node in ast.walk(tree)
                     if isinstance(node, FUNCTION_NODES_TUPLE)
-                    and node.returns is None and is_none_returning_bool(node)]
+                    and node.returns is None]
+    targets_list = [(node, annotation_str) for node, annotation_str
+                    in targets_list if annotation_str]
     if not targets_list:
         return source_str, []
+    new_str = insert_annotations_str(source_str, targets_list)
+    if not new_str or ast.dump(ast.parse(new_str)) != ast.dump(tree):
+        return source_str, []
+    return new_str, [f"{node.name} -> {annotation_str}"
+                     for node, annotation_str in targets_list]
+
+
+def insert_annotations_str(source_str: str,
+                           targets_list: list[tuple[ast.AST, str]]) -> str:
+    """Write return annotations before each function header's colon.
+
+    Args:
+        source_str (str): Module text.
+        targets_list (list[tuple]): (function node, annotation) pairs;
+            each node's returns is set to match, for verification.
+    Returns:
+        str: The new text, or "" when a header colon is not found.
+    Warnings:
+        Columns are converted from AST bytes to tokenize characters.
+    """
     colons_dict = find_header_colons_dict(source_str)
     lines_list = source_str.splitlines(keepends=True)
     edits_list = []
-    for node in targets_list:
+    for node, annotation_str in targets_list:
         line_str = lines_list[node.lineno - 1]
         column_int = len(line_str.encode("utf-8")[:node.col_offset].decode(
             "utf-8", "ignore"))
         def_column_int = line_str.index("def", column_int)
         colon_tuple = colons_dict.get((node.lineno, def_column_int))
         if colon_tuple is None:
-            return source_str, []
-        edits_list.append(colon_tuple)
-        node.returns = ast.Constant(None)
-    for line_int, column_int in sorted(edits_list, reverse=True):
+            return ""
+        edits_list.append((*colon_tuple, annotation_str))
+        node.returns = (ast.Constant(None) if annotation_str == "None"
+                        else ast.Name(annotation_str, ast.Load()))
+    for line_int, column_int, annotation_str in sorted(edits_list,
+                                                       reverse=True):
         line_str = lines_list[line_int - 1]
-        lines_list[line_int - 1] = (line_str[:column_int] + " -> None"
+        lines_list[line_int - 1] = (line_str[:column_int]
+                                    + f" -> {annotation_str}"
                                     + line_str[column_int:])
-    new_str = "".join(lines_list)
-    if ast.dump(ast.parse(new_str)) != ast.dump(tree):
-        return source_str, []
-    return new_str, [node.name for node in targets_list]
+    return "".join(lines_list)
 
 
 def apply_safe_fixes(
@@ -151,10 +203,17 @@ def apply_safe_fixes(
     """
     compile(source_str, path_str, "exec", dont_inherit=True)
     outcome = FixOutcome(source_str)
+    outcome.text, renames_list, rename_notes_list = apply_naming_fixes_tuple(
+        outcome.text, path_str, is_code_enabled_bool(settings_info, "RT102"),
+        is_code_enabled_bool(settings_info, "RT201"))
+    if renames_list:
+        outcome.applied.append(f"RT102/RT201: renamed "
+                               f"{', '.join(renames_list)}")
+    outcome.notes += rename_notes_list
     if is_code_enabled_bool(settings_info, "RT402"):
         outcome.text, names_list = add_none_returns_tuple(outcome.text)
         if names_list:
-            outcome.applied.append(f"RT402: '-> None' added to "
+            outcome.applied.append(f"RT402: return types added: "
                                    f"{', '.join(names_list)}")
     apply_funcloom_fixes_none(outcome, path_str, settings_info)
     compile(outcome.text, path_str, "exec", dont_inherit=True)

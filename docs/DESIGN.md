@@ -32,9 +32,11 @@ rules, scope/index/rename analysis and formatting are Python-only. See
 
 ## Refactoring scope
 
-Current fix groups are RT402 eligible None return annotations, RT301
-function docstring skeletons, RT101 wrapping and RT501/RT502 splitting via
-FuncLoom. Other findings are review guidance. The `rename` command prepares bounded local-name review proposals; it has
+Current fix groups are RT201 renames of single-character loop targets and
+open() handles, RT102 UPPER_CASE renames of module constants outside
+packages, RT402 return annotations (None, or one literal type), RT301
+docstrings built from the code, RT101 wrapping and RT501/RT502 splitting
+via FuncLoom. Other findings are review guidance. The `rename` command prepares bounded local-name review proposals; it has
 no apply mode. There is no `--unsafe-fixes` rename engine. Parameter, return and variable suffix rules do not rename
 public interfaces. User-provided names and domain meanings remain explicit.
 

@@ -61,7 +61,8 @@ class NoneReturnTests(unittest.TestCase):
     def test_only_certain_none_functions_are_annotated(self):
         new_text, names_list = add_none_returns_tuple(NONE_RETURN_SOURCE)
         self.assertEqual(sorted(names_list),
-                         ["early_exit", "log_value", "notify"])
+                         ["early_exit -> None", "log_value -> None",
+                          "notify -> None"])
         self.assertIn("def log_value(value: int) -> None:", new_text)
         self.assertIn("    retries: int = 3,\n) -> None:", new_text)
         self.assertIn("def produce():", new_text)

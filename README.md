@@ -232,16 +232,35 @@ python -m refactrail fix src
 ```
 
 `fix --diff` previews edits without writing. `fix` edits files in place:
-selected fixes add eligible `-> None` annotations, create function docstring
-skeletons, wrap supported lines and split supported long functions. It
+
+- **Meaningful names (RT201):** single-letter loop variables and file
+  handles get names from what they hold: `for r in rows` becomes
+  `for row in rows`, `for i in range(n)` becomes `for index in ...`,
+  `with open(p) as f` becomes `... as file_handle`.
+- **Constants (RT102):** `threshold = 1000` becomes `THRESHOLD`
+  everywhere in the file (not in package modules, and not when another
+  file in the folder mentions the name).
+- **Return types (RT402):** `-> None` when a function never returns a
+  value; `-> list`, `-> dict`, `-> set`, `-> tuple` or `-> str` when its
+  only return gives a value built from one literal type.
+- **Docstrings (RT301)** that say what the code does ("Load sales. It
+  opens path, reads CSV rows and loops over reader."; "path: Passed to
+  open()."; "list: rows.").
+- Supported long lines are wrapped and long functions split.
+
+A rename is refused when the new name is already used, when a nested
+function reads the name, or when the module uses eval, exec, globals(),
+locals(), vars(), `__all__`, `global` or a star import; each rename is
+checked by mapping the new syntax tree back to the original. It
 checks compilation, rejects linked files and changed source, and replaces
 each file atomically. Review diffs and run your project's tests. A failed
 file does not roll back other files in a multi-file run.
 
 These are structural checks, not proof of unchanged behavior. Annotations
 and docstrings can affect reflection. There is no automatic domain naming,
-public-API renaming, inferred annotation insertion beyond the bounded None
-case, or arbitrary repository restructuring. Missing meanings need user
+public-API renaming (parameters, functions and package constants keep
+their names), inferred parameter annotations, or arbitrary repository
+restructuring. Missing meanings need user
 context. Unsupported functions can remain long. Use FuncLoom's explicit
 `modularize` command to create a separate package draft.
 

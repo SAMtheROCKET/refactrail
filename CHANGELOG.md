@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- `fix` now fixes what `check` reports, from the owner's hands-on trial
+  ("almost no change at all"):
+  - RT201: single-character loop targets and open() handles get names
+    from what they hold (`for row in rows`, `for index in range(...)`,
+    `as file_handle`).
+  - RT102: module constants become UPPER_CASE everywhere in the file,
+    except in package modules or when another file in the folder
+    mentions the name.
+  - RT402: `-> list`, `-> dict`, `-> set`, `-> tuple` or `-> str` when a
+    function's only return gives a value built from one literal type, in
+    addition to `-> None`.
+  - RT301: docstrings describe what the code shows (FuncLoom's new
+    `doc_facts`) instead of "Not described in the original code".
+  Renames are refused on collisions, closures and dynamic namespace use,
+  and verified by mapping the new tree back to the original. Over 3,205
+  files of the standard library and 129 packages: 1,288 renames and
+  2,222 typed return annotations, no crash and every result compiles.
+
 - `refactrail-native rename` previews a local-variable rename without
   Python: the same JSON document, diff and refusals (RENAME001-RENAME007)
   as `refactrail rename`, byte-identical on 12,056 requests over the
