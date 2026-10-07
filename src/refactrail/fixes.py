@@ -246,10 +246,14 @@ def apply_funcloom_fixes_none(
                           for diagnostic_info in refined.diagnostics]
         return
     outcome.text = refined.text
-    for code_str, names_list in (("RT301: docstring skeleton for",
+    for code_str, names_list in (("RT301: docstrings added to",
                                   refined.documented_functions),
                                  ("RT501/RT502: split",
                                   refined.split_functions)):
         if names_list:
-            outcome.applied.append(f"{code_str} {', '.join(names_list)}")
+            # FuncLoom prefixes each name with the file; the line already
+            # starts with it.
+            short_list = [name_str.rsplit(": ", 1)[-1]
+                          for name_str in names_list]
+            outcome.applied.append(f"{code_str} {', '.join(short_list)}")
     outcome.notes += refined.notes
