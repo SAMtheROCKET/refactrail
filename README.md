@@ -1,5 +1,7 @@
 # RefacTrail
 
+Local unpublished update: [0.5.3a0 three-tool workflow](docs/THREE_TOOL_WORKFLOW.md).
+
 [![CI](https://github.com/SAMtheROCKET/refactrail/actions/workflows/ci.yml/badge.svg)](https://github.com/SAMtheROCKET/refactrail/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/refactrail?include_prereleases)](https://pypi.org/project/refactrail/)
 [![Python](https://img.shields.io/pypi/pyversions/refactrail)](https://pypi.org/project/refactrail/)
@@ -333,3 +335,10 @@ systems. [Release preparation](docs/RELEASE_PREPARATION.md) lists the
 remaining launch work. No public release has been made.
 
 [MIT](LICENSE), copyright 2026 Sambit Supriya Dash.
+
+## SQL resource drafts
+
+`refactrail sql report.py` previews query extraction; add
+`--output report_draft` to write `src/report.py` and adjacent `src/sql`
+assets. A folder input keeps its existing layout. See
+[SQL resources](docs/SQL_RESOURCES.md) for limits and the full pipeline.

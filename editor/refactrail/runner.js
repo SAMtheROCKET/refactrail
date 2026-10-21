@@ -7,7 +7,7 @@ function runPython(pythonPath, tool, argumentsList, input = '', spawnProcess = s
         throw new Error('Unsupported tool');
     }
     return new Promise((resolve, reject) => {
-        const process = spawnProcess(pythonPath, ['-I', '-m', tool, ...argumentsList], {
+        const process = spawnProcess(pythonPath, ['-I', '-X', 'utf8', '-m', tool, ...argumentsList], {
             shell: false,
             windowsHide: true,
             env: { ...global.process.env, PYTHONNOUSERSITE: '1', PYTHONUTF8: '1' },
@@ -82,6 +82,7 @@ module.exports = { runPython, ensureTrusted, checkArguments, generalArguments, g
 
 function isSupportedInput(command, filePath) {
     const extension = require('node:path').extname(filePath).toLowerCase();
+    if (command === 'sql') { return extension === '.py'; }
     return ['.py', '.pyi'].includes(extension)
         || (extension === '.ipynb' && ['formatPreview', 'formatWrite'].includes(command))
         || command === 'index';

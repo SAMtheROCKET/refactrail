@@ -72,3 +72,11 @@ Native notices accompany the core distribution. Local release validation
 is recorded separately from prepared CI workflows. Platform support and
 benchmarks describe measured configurations only. Publication remains an
 owner action, after FuncLoom's required version is available.
+
+## Integrated draft workflow (0.5.3a0, unpublished)
+
+FlowBlueprint now consumes the public prepare_refactoring_dict API. It
+requests writes only in its new project copy, then diagrams final source.
+The API is read-only by default. It does not apply saved rename proposals.
+Final strict findings and explicit context questions remain in the bundle.
+See THREE_TOOL_WORKFLOW.md for the exact scope and remaining semantic work.

@@ -38,7 +38,7 @@ test('runner uses isolated Python, argument arrays and no shell', async () => {
         });
     assert.equal(actual.options.shell, false);
     assert.equal(actual.options.windowsHide, true);
-    assert.deepEqual(actual.args, ['-I', '-m', 'funcloom', 'snippet', '-']);
+    assert.deepEqual(actual.args, ['-I', '-X', 'utf8', '-m', 'funcloom', 'snippet', '-']);
     assert.equal(result.code, 0);
     assert.equal(JSON.parse(result.output).status, 'candidate_for_review');
 });
@@ -83,4 +83,12 @@ test('bracket style reaches formatting and is validated', () => {
     assert.deepEqual(generalArguments('formatPreview', 'a.py', 79, null),
         ['format', 'a.py', '--diff', '--line-length', '79']);
     assert.throws(() => generalArguments('formatWrite', 'a.py', 79, 'tight'), /Bracket style/);
+});
+
+test('SQL drafts accept Python and reject notebook and stub inputs', () => {
+    const { isSupportedInput } = require('../runner');
+    assert.ok(isSupportedInput('sql', 'report.py'));
+    assert.ok(!isSupportedInput('sql', 'report.ipynb'));
+    assert.ok(!isSupportedInput('sql', 'report.pyi'));
+    assert.ok(require('../package.json').contributes.commands.some(item => item.command === 'refactrail.sql'));
 });

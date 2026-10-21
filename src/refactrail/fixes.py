@@ -263,13 +263,15 @@ def apply_funcloom_fixes_none(
         split_functions_bool=is_code_enabled_bool(settings_info, "RT501")
         or is_code_enabled_bool(settings_info, "RT502"),
         document_bool=is_code_enabled_bool(settings_info, "RT301"),
+        complete_docstrings_bool=is_code_enabled_bool(
+            settings_info, "RT302"),
         wrap_lines_bool=is_code_enabled_bool(settings_info, "RT101"))
     if refined.diagnostics:
         outcome.notes += [diagnostic_info.message
                           for diagnostic_info in refined.diagnostics]
         return
     outcome.text = refined.text
-    for code_str, names_list in (("RT301: docstrings added to",
+    for code_str, names_list in (("RT301/RT302: documented",
                                   refined.documented_functions),
                                  ("RT501/RT502: split",
                                   refined.split_functions)):

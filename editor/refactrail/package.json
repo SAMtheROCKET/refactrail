@@ -11,8 +11,8 @@
     "sarif",
     "code quality"
   ],
-  "version": "0.5.1",
-  "toolVersion": "0.5.1a0",
+  "version": "0.5.3",
+  "toolVersion": "0.5.3a0",
   "publisher": "samtherocket",
   "license": "MIT",
   "icon": "icon.png",
@@ -81,6 +81,10 @@
       {
         "command": "refactrail.rename",
         "title": "RefacTrail: Preview local variable rename"
+      },
+      {
+        "command": "refactrail.sql",
+        "title": "RefacTrail: Draft SQL resources to new folder"
       }
     ],
     "configuration": {

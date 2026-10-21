@@ -76,7 +76,7 @@ function activate(context) {
             } else {
                 const outputUri = await vscode.window.showSaveDialog({
                     title: 'Choose a new output file or folder name',
-                    defaultUri: vscode.Uri.file(uri.fsPath + (command === 'refine' ? '.refined.py' : '.modular')),
+                    defaultUri: vscode.Uri.file(uri.fsPath + (command === 'refine' ? '.refined.py' : command === 'sql' ? '.sql-draft' : '.modular')),
                 });
                 if (!outputUri) { return; }
                 args = [command, uri.fsPath, '--output', outputUri.fsPath, '--format', 'json'];
@@ -115,6 +115,9 @@ function activate(context) {
                 content: result.output, language: ['preview', 'formatPreview'].includes(command) ? 'diff' : 'json',
             });
             await vscode.window.showTextDocument(document, { preview: true });
+            if (command === 'sql' && result.code !== 0) {
+                throw new Error('SQL draft refused; see the report for located reasons.');
+            }
         }
     }
 

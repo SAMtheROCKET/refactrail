@@ -13,7 +13,10 @@ from refactrail.project_index import analyze_project_dict
 from refactrail.rename import plan_rename_dict
 from refactrail.correctness_batch import check_correctness_paths_list
 
+from refactrail.pipeline import prepare_refactoring_dict
+
 __all__ = [
+    "prepare_refactoring_dict",
     "analyze_lexical_dict",
     "analyze_project_dict",
     "plan_rename_dict",

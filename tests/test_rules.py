@@ -347,3 +347,12 @@ class NativeRulesTableTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IncompleteDocstringContractTests(unittest.TestCase):
+    def test_existing_summary_still_requires_sections(self):
+        from refactrail import Settings, check_text_list
+        source = 'def calculate_value(value_int: int) -> int:\n    """Keep my explanation."""\n    return value_int\n'
+        findings = check_text_list('sample.py', source.encode(), Settings(select=('RT302',)))
+        self.assertTrue(findings)
+        self.assertTrue(all(item.code == 'RT302' for item in findings))

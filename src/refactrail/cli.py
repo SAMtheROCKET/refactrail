@@ -8,12 +8,14 @@ from refactrail._version import __version__
 from refactrail.analysis_cli import (
     add_analysis_commands_none, run_analysis_int,
 )
+from refactrail.console import configure_console_none
 from refactrail.config import PROFILES_TUPLE, load_settings
 from refactrail.correctness import CORRECTNESS_TITLES_DICT
 from refactrail.discovery import discover_python_files_list
 from refactrail.engine import (
     CACHE_FOLDER_STR, ENGINES_TUPLE, check_paths_list,
 )
+from refactrail.fixes import FixOutcome
 from refactrail.fixing import fix_file, render_diff_str, write_fix_none
 from refactrail.general_cli import (
     add_general_commands_none, run_format_int, run_lint_int,
@@ -24,6 +26,7 @@ from refactrail.report import (
 )
 from refactrail.rules import RULE_TITLES_DICT
 from refactrail.sarif import render_sarif_str
+from refactrail.sql_cli import add_sql_parser_none, run_sql_int
 
 
 QUICK_START_STR = """\
@@ -97,6 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("rules", help="List RT style and RC correctness codes")
     add_general_commands_none(commands)
     add_analysis_commands_none(commands)
+    add_sql_parser_none(commands)
     return parser
 
 
@@ -111,8 +115,6 @@ def run_fix_int(arguments: argparse.Namespace) -> int:
     Warnings:
         Files are changed in place unless --diff is given.
     """
-    if getattr(arguments, "jobs", 0) < 0:
-        raise ValueError("jobs must be nonnegative")
     settings_info = load_settings(Path(arguments.paths[0]), {
         "profile": arguments.profile, "line_length": arguments.line_length,
         "select": split_codes_tuple(arguments.select),
@@ -121,6 +123,7 @@ def run_fix_int(arguments: argparse.Namespace) -> int:
     fixes_list = [fix_file(path_str, settings_info)
                   for path_str in files_list]
     for file_fix in fixes_list:
+        write_fix_notes_none(file_fix.path, file_fix.outcome)
         if file_fix.skip_reason:
             sys.stderr.write(f"{file_fix.path}: skipped: "
                              f"{file_fix.skip_reason}\n")
@@ -140,6 +143,24 @@ def run_fix_int(arguments: argparse.Namespace) -> int:
                      "finding(s) remain for the selected rules (run "
                      "'refactrail check').\n")
     return int(bool(remaining_list) or skipped_bool)
+
+
+def write_fix_notes_none(
+    path_str: str, outcome_info: FixOutcome | None,
+) -> None:
+    """Show declined edits and limits even when no text changed.
+
+    Args:
+        path_str: Input path.
+        outcome_info: Fix result, or None after a read failure.
+    Returns:
+        None: Writes explanatory notes to stderr.
+    Warnings:
+        Notes are separate from the stdout diff.
+    """
+    if outcome_info is not None:
+        for note_str in outcome_info.notes:
+            sys.stderr.write(f"{path_str}: note: {note_str}\n")
 
 
 def split_codes_tuple(codes_str: str | None) -> tuple[str, ...] | None:
@@ -202,11 +223,14 @@ def main(argv_list: list[str] | None = None) -> int:
     Warnings:
         Configuration and path errors are printed, not raised.
     """
+    configure_console_none()
     if not (sys.argv[1:] if argv_list is None else argv_list):
         sys.stdout.write(QUICK_START_STR)
         return 0
     arguments = build_parser().parse_args(argv_list)
     try:
+        if arguments.command == "sql":
+            return run_sql_int(arguments)
         if arguments.command in ("scope", "index", "rename"):
             return run_analysis_int(arguments)
         if arguments.command == "lint":

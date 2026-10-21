@@ -473,3 +473,21 @@ assignment whose value contains no call anywhere, `pass`, or a `try`
 statement all of whose inner statements (at any depth) are among these
 kinds. One finding per file, at that statement's first line and column. Message: `Module runs code at
 import time; move it into functions called from the main block.`
+
+## SQL resource drafting (Python workflow)
+
+`refactrail sql` consumes FuncLoom's public `sql-assets-1` API; it does
+not add RT/RC rules or change native lint behavior. SQL001/002/003 follow
+[SQL_RESOURCES.md](SQL_RESOURCES.md). Rewrites go to a new copy only.
+
+## Incomplete docstrings and console output (unpublished)
+
+RT302 checking is unchanged in both engines. With RT302 enabled, `fix` now
+completes missing Args, Returns (or Yields), and Warnings sections of
+existing Python docstrings, preserving their original descriptions.
+Generated text records source evidence and unknown annotations, not domain
+knowledge. Protected directives and one-line bodies remain unchanged.
+RT301 still controls insertion where no docstring exists. Fix explanations
+are printed even when a proposal is refused or nothing changes.
+Console characters unavailable in its encoding are escaped instead of
+crashing; set PYTHONIOENCODING=utf-8 for exact Unicode diff output.

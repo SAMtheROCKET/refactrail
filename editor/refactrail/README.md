@@ -36,3 +36,12 @@ that the file has not changed and that the result still compiles to the
 same program. Save files before running a command. Nothing is sent to any
 service, the checked code is never run, and each command is limited to 60
 seconds and 8 MB of output.
+
+## SQL resource workflow
+
+Run **RefacTrail: Draft SQL resources to new folder** on a saved Python
+file. Original source stays unchanged; review the generated JSON report.
+
+
+Local 0.5.3a0 update: Python now starts with `-I -X utf8` for Unicode
+diffs and diagnostics on Windows. Rebuild/reinstall this VSIX on each machine.
