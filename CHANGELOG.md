@@ -1,17 +1,22 @@
 # Changelog
 
-## 0.5.3a0 - unpublished local development
+## 0.5.3a0 - fixes that change code, SQL command and workflow API, 2026-10-22
+
+Includes 0.5.2a0, which was not published separately. refactrail-core
+0.5.3a0 is the 0.5.1a0 engine, versioned in step.
+
+### Workflow, docstrings and console
 
 Complete RT302 docstring sections through FuncLoom, display declined-fix notes, handle legacy console encodings, and expose an explicit refactoring/checking workflow API with context questions. Fix editor Unicode encoding. Checker rule semantics and native core unchanged.
 
-## 0.5.2a0 - unreleased
+### SQL command
 
 Add `refactrail sql` through FuncLoom's public SQL draft API.
 Requires FuncLoom 0.10.6a0. Native lint/format behavior and the
 refactrail-core 0.5.1a0 dependency are unchanged.
 
 
-## Unreleased
+### From the owner's hands-on trial
 
 - `fix` now fixes what `check` reports, from the owner's hands-on trial
   ("almost no change at all"):

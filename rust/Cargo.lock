@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "refactrail-cli"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "mimalloc",
  "rayon",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "refactrail-core"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "pyo3",
  "rayon",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "refactrail-engine"
-version = "0.5.1"
+version = "0.5.3"
 dependencies = [
  "memchr",
  "refactrail-lexer",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "refactrail-lexer"
-version = "0.5.1"
+version = "0.5.3"
 
 [[package]]
 name = "refactrail-parser"

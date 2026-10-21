@@ -24,7 +24,7 @@ classifiers = [
 ]
 # refactrail-core is the Rust engine: pip picks the native wheel for the
 # system, or its pure-Python fallback wheel, so installation never needs Rust.
-dependencies = ["funcloom>=0.10.8a0,<0.11", "refactrail-core==0.5.1a0"]
+dependencies = ["funcloom>=0.10.8a0,<0.11", "refactrail-core==0.5.3a0"]
 
 [project.optional-dependencies]
 fast = []

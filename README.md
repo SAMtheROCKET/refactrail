@@ -1,7 +1,5 @@
 # RefacTrail
 
-Local unpublished update: [0.5.3a0 three-tool workflow](docs/THREE_TOOL_WORKFLOW.md).
-
 [![CI](https://github.com/SAMtheROCKET/refactrail/actions/workflows/ci.yml/badge.svg)](https://github.com/SAMtheROCKET/refactrail/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/refactrail?include_prereleases)](https://pypi.org/project/refactrail/)
 [![Python](https://img.shields.io/pypi/pyversions/refactrail)](https://pypi.org/project/refactrail/)
@@ -32,7 +30,7 @@ Built for developers, data scientists and teams that want clean,
 consistent code; pair it with FuncLoom to turn scripts and notebooks into
 functions and FlowBlueprint to draw the architecture.
 
-**Status:** alpha, version 0.5.1a0 on PyPI. Free and open source (MIT).
+**Status:** alpha, version 0.5.3a0 on PyPI. Free and open source (MIT).
 Works offline: no AI model, account or internet connection needed.
 
 ## Start in one minute
@@ -87,7 +85,7 @@ Add this to `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/SAMtheROCKET/refactrail
-    rev: v0.5.1a0
+    rev: v0.5.3a0
     hooks:
       - id: refactrail-lint
       - id: refactrail-format
@@ -324,7 +322,7 @@ environment containing these packages, and use a trusted workspace.
 
 ```powershell
 python scripts/verify.py
-python scripts/release_check.py --output dist/0.5.1a0 --dependency-wheel path/to/funcloom-0.10.5a0-py3-none-any.whl
+python scripts/release_check.py --output dist/0.5.3a0 --dependency-wheel path/to/funcloom-0.10.8a0-py3-none-any.whl
 ```
 
 The release script builds and checks a wheel and source archive, installs
